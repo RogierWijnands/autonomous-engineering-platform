@@ -1,0 +1,38 @@
+name: Conventional commits
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  conventional-commits:
+    name: Conventional commits
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install repository tooling
+        run: npm ci
+
+      - name: Lint pull request commits
+        run: npx --no -- commitlint --from "${{ github.event.pull_request.base.sha }}" --to "${{ github.event.pull_request.head.sha }}"
+
+      - name: Lint pull request title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          node -e 'require("node:fs").writeFileSync("/tmp/pr-title.txt", process.env.PR_TITLE + "\n")'
+          npx --no -- commitlint --edit /tmp/pr-title.txt
