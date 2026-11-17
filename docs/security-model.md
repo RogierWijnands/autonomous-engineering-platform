@@ -12,14 +12,14 @@ validates and enforces them.
 
 - GitHub repositories, branches, and pull requests.
 - GitHub credentials and any model access.
-- Tickets and potentially confidential content in tickets or repositories.
+- Issues and potentially confidential content in issues or repositories.
 - Workflow state, agent results, and audit data in PostgreSQL.
 - The development machine and the files stored on it.
 - The integrity of code, tests, and artifacts produced by agents.
 
 ## Trust boundaries
 
-1. **External/untrusted content:** ticket descriptions, comments, repository
+1. **External/untrusted content:** issue descriptions, comments, repository
    files, model output, MCP responses, and tool output are data, not policy or
    instructions with elevated authority.
 2. **Agent container:** code and commands in the workspace may be untrusted.
@@ -38,7 +38,7 @@ validates and enforces them.
 
 | Threat | Intended control |
 |---|---|
-| Prompt injection through tickets, code, or tool output | Treat external content as untrusted data; never allow it to change policy, permissions, or approval requirements. |
+| Prompt injection through issues, code, or tool output | Treat external content as untrusted data; never allow it to change policy, permissions, or approval requirements. |
 | Unintended or harmful agent actions | Restrict agent tools and workspace; perform external side effects through controlled host-side adapters. |
 | Theft of GitHub credentials | Do not put GitHub tokens in the agent container, prompts, repository, or logs; allow only the host to use credentials. |
 | Container escape or access to host files | Do not mount the Docker socket or personal files; restrict capabilities, mounts, network, and resources. Exact Docker hardening still needs to be designed and tested. |
@@ -62,17 +62,40 @@ validates and enforces them.
 The approver identity model, approval API, and behavior on rejection or timeout
 still need to be designed.
 
+## Legal, privacy, and dependency requirements
+
+- Check applicable legal, privacy, and data-protection requirements when
+  handling issue, repository, or user data; minimize data collection and
+  exposure.
+- Respect intellectual-property rights, open-source licenses, and third-party
+  terms when selecting dependencies or using external content.
+- Treat these guidelines as engineering constraints, not legal advice. Surface
+  uncertainty for qualified review instead of making unsupported legal claims.
+- For development changes, inspect direct and transitive dependencies for
+  known vulnerabilities, review changed code for security weaknesses, and test
+  relevant security boundaries. Report unresolved findings explicitly.
+- Add focused unit tests by default for all newly built or changed behavior.
+
 ## Secrets and data
 
 - Do not commit secrets to source control; commit only non-sensitive example
   configuration.
-- Do not put credentials in prompts, agent input, command lines, or unredacted
-  logs.
+- Treat `.env` files, process environment variables, appsettings, CI variables,
+  certificates, private keys, connection strings, tokens, and signing keys as
+  sensitive configuration. Do not print or copy actual values into prompts,
+  agent input, command lines, test fixtures, screenshots, or unredacted logs.
+- Ensure secret-bearing local files are ignored by version control. Examples
+  and test fixtures use fake placeholders only.
+- Validate required configuration without echoing the supplied value in
+  exceptions or logs. Use least-privilege credentials with narrow scope and
+  lifetime, and define rotation or revocation procedures where applicable.
+- Minimize access to adjacent sensitive information, including personal data,
+  cookies, and customer identifiers.
 - Choose an explicit secret store for local development and document setup
   outside version control.
-- Restrict which ticket and repository data is sent to model calls; define this
+- Restrict which issue and repository data is sent to model calls; define this
   per integration and data classification.
-- Define retention periods and deletion procedures for ticket content, agent
+- Define retention periods and deletion procedures for issue content, agent
   transcripts, and audit data.
 
 Secret storage, data classification, and retention have not yet been
@@ -97,6 +120,10 @@ runs.
 - [ ] No GitHub token, Docker socket, or personal mounts in agent containers.
 - [ ] Docker network, capability, resource, and workspace cleanup policies.
 - [ ] Secure local secret management and tested log redaction.
+- [ ] Secret/configuration files are ignored; no real keys or sensitive
+  environment values are present in source, tests, command output, or logs.
 - [ ] Durable and auditable storage for policy decisions and approvals.
+- [ ] Dependency vulnerability checks and security-focused code review/tests.
+- [ ] Focused unit tests for all newly built or changed behavior.
 - [ ] Tests for denied actions, prompt injection, and audit/policy storage failures.
 - [ ] Defined cancellation, timeout, retry, and agent-run recovery behavior.

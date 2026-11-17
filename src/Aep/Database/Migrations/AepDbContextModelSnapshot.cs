@@ -163,6 +163,52 @@ namespace Aep.Infrastructure.Database.Migrations
                     b.ToTable("AuditEvents");
                 });
 
+            modelBuilder.Entity("Aep.Workflows.Issues.Issue", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ExternalId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("ProjectKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Summary")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Url")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Source", "ExternalId")
+                        .IsUnique();
+
+                    b.ToTable("Issues");
+                });
+
             modelBuilder.Entity("Aep.Workflows.Policies.PolicyDecision", b =>
                 {
                     b.Property<Guid>("Id")
@@ -264,52 +310,6 @@ namespace Aep.Infrastructure.Database.Migrations
                     b.ToTable("PullRequests");
                 });
 
-            modelBuilder.Entity("Aep.Workflows.Tickets.Ticket", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("ExternalId")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
-
-                    b.Property<string>("ProjectKey")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<string>("Source")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<string>("Summary")
-                        .IsRequired()
-                        .HasMaxLength(512)
-                        .HasColumnType("character varying(512)");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Url")
-                        .HasMaxLength(2048)
-                        .HasColumnType("character varying(2048)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Source", "ExternalId")
-                        .IsUnique();
-
-                    b.ToTable("Tickets");
-                });
-
             modelBuilder.Entity("Aep.Workflows.Workflows.Workflow", b =>
                 {
                     b.Property<Guid>("Id")
@@ -322,13 +322,13 @@ namespace Aep.Infrastructure.Database.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid>("IssueId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
-
-                    b.Property<Guid>("TicketId")
-                        .HasColumnType("uuid");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -337,9 +337,9 @@ namespace Aep.Infrastructure.Database.Migrations
 
                     b.HasIndex("CreatedAt");
 
-                    b.HasIndex("Status");
+                    b.HasIndex("IssueId");
 
-                    b.HasIndex("TicketId");
+                    b.HasIndex("Status");
 
                     b.ToTable("Workflows");
                 });
@@ -453,13 +453,13 @@ namespace Aep.Infrastructure.Database.Migrations
 
             modelBuilder.Entity("Aep.Workflows.Workflows.Workflow", b =>
                 {
-                    b.HasOne("Aep.Workflows.Tickets.Ticket", "Ticket")
+                    b.HasOne("Aep.Workflows.Issues.Issue", "Issue")
                         .WithMany("Workflows")
-                        .HasForeignKey("TicketId")
+                        .HasForeignKey("IssueId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.Navigation("Ticket");
+                    b.Navigation("Issue");
                 });
 
             modelBuilder.Entity("Aep.Workflows.Workflows.WorkflowStep", b =>
@@ -473,7 +473,7 @@ namespace Aep.Infrastructure.Database.Migrations
                     b.Navigation("Workflow");
                 });
 
-            modelBuilder.Entity("Aep.Workflows.Tickets.Ticket", b =>
+            modelBuilder.Entity("Aep.Workflows.Issues.Issue", b =>
                 {
                     b.Navigation("Workflows");
                 });

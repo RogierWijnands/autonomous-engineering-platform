@@ -12,6 +12,8 @@ node_modules/
 npm-debug.log*
 **/dist/
 **/coverage/
+mcp/jira-simulator/playwright-report/
+mcp/jira-simulator/test-results/
 
 # Environment, local configuration, and secrets
 .env
@@ -55,3 +57,4 @@ docker-compose.override.yml
 .idea/
 .vscode/*
 !.vscode/extensions.json
+!.vscode/mcp.json

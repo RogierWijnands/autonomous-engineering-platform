@@ -3,14 +3,15 @@
 ## Status
 
 This document describes the intended end-to-end flow. The host, initial
-database model, and schema migration are in place, but the workflow state
-machine, MCP server, isolated agent execution, and GitHub integration are not
-yet implemented.
+database model, schema migration, and a standalone simulator UI are in place.
+The UI currently uses in-memory sample issues; the MCP server, persistence,
+webhook, workflow state machine, isolated agent execution, and GitHub
+integration are not yet implemented.
 
 ## Overview
 
 ```text
-Ticket created and moved to In Progress
+Issue created and moved to In Progress
         ↓ webhook
 Receive, validate, and deduplicate
         ↓
@@ -18,7 +19,7 @@ Policy and risk evaluation
         ↓ if required
 Human approval
         ↓
-Analyst → Architect → Implementer → Tester → Reviewer
+Analyst → Architect → UI/UX design → Developer → UI/UX review → Tester → Reviewer
         ↓
 Result and policy checks
         ↓ host-side GitHub actions
@@ -27,19 +28,19 @@ Feature branch → draft PR → human review
 
 ## Phases
 
-### 1. Receive ticket
+### 1. Receive issue
 
-The Jira simulator manages local tickets and exposes them through MCP. When a
-relevant status transition occurs, the simulator sends a webhook to the AEP
-API. The API should authenticate the sender, validate the payload, and create
-a durable workflow record. Redelivery of the same event should not cause an
-unintended duplicate execution.
+Jira Simulator will manage local issues and expose them through
+MCP. When a relevant status transition occurs, it will send a webhook to the
+AEP API. The API should authenticate the sender, validate the payload, and
+create a durable workflow record. Redelivery of the same event should not cause
+an unintended duplicate execution.
 
 ### 2. Establish scope and policy
 
-The orchestrator associates the ticket with the configured GitHub repository,
+The orchestrator associates the issue with the configured GitHub repository,
 checks scope, and determines the risk level. The policy engine decides which
-actions and approvals are required. Ticket or repository text cannot change
+actions and approvals are required. Issue or repository text cannot change
 the policy.
 
 If scope, risk, or required input cannot be determined reliably, the workflow
@@ -54,14 +55,45 @@ and timeout stop or pause the workflow according to explicit rules.
 
 ### 4. Agent execution
 
-The host creates a bounded Docker workspace for the task. Agents perform the
-analyst, architect, implementer, tester, and reviewer roles. Agent instructions
-are in `agents/`; runtime inputs and output formats still need to be defined.
+The host creates a bounded Docker workspace for the task. Every repository
+request follows Analyst → Architect → UI/UX design → Developer → UI/UX review
+→ Tester → Reviewer, in that order. For user-facing frontend changes, UI/UX
+first provides the design direction and WCAG 2.2 AA acceptance criteria to
+Developer, then reviews the implementation. If no interface changes, both
+UI/UX stages report not applicable and hand off to their next role. Every role
+consumes the preceding handoff and records its own output for the next role.
+Analyst assigns stable IDs to requirements, constraints, and acceptance
+criteria, with risks and verification methods. Architect preserves every ID
+in a traceability register mapping it to design decisions and validation, or
+explaining why it is not applicable. Developer, both UI/UX stages, and Tester
+consume the complete registers, account for every ID with evidence or a
+justified not-applicable status, and carry evidence forward; no stage may
+silently drop an item by summarizing it. Browser test tooling is documented
+in `docs/accessibility-testing.md`.
+For frontend changes, Developer adds or updates end-to-end tests for relevant
+user journeys and accessibility semantics, UI/UX reviews their coverage and
+results, and Tester verifies them. Assess screen-reader accessibility from the
+rendered interface and relevant DOM semantics, and report it as an estimate,
+not observed screen-reader behavior. Explain when E2E tests are not warranted.
+All roles apply WCAG 2.2 AA as the engineering target when evaluating,
+designing, implementing, testing, or reviewing user-facing interfaces; this
+is not a claim of legal compliance. A stage with no other applicable work must
+still report what it checked and why no action was needed; for example,
+documentation-only work may not need code changes or unit tests. If
+requirements are materially ambiguous, pause for user clarification. If
+post-implementation UI/UX, testing, or review identifies an implementation
+defect, return the work to Developer and repeat the affected UI/UX, testing,
+and review stages. Instructions are in `agents/` and
+`.github/agents/orchestrator.agent.md`.
 
 The agent container receives no GitHub token, Docker socket, or access to
 personal files. Each step should have a bounded task, timeout, and resource
 budget. The orchestrator records status and results so a process restart does
 not make the workflow depend on volatile agent memory.
+
+Development handoffs must include validation commands, unit-test results,
+dependency and security-check results, and unresolved findings. Never include
+secret values in agent context or handoffs.
 
 ### 5. Quality and policy checks
 
@@ -74,7 +106,7 @@ PR presented as successful.
 
 The .NET host performs permitted GitHub actions using limited credentials:
 creating a feature branch, commits, and a draft PR. The agent container does
-not perform these actions itself. The PR references the original ticket and
+not perform these actions itself. The PR references the original issue and
 includes a summary, test results, and relevant risks.
 
 A person reviews the draft PR. Creating a draft PR is not approval to merge or
