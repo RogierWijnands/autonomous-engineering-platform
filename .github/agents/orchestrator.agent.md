@@ -18,6 +18,12 @@ alongside the code. For code or architecture changes, ensure the affected
 documentation is updated in the same change; if no documentation update is
 warranted, state why.
 
+## Standard pull request request
+
+When the user asks to make a PR, or asks to branch, commit, push, and open a
+PR for the current changes, follow `.github/prompts/create-pr.prompt.md`.
+Execute the workflow rather than only describing it.
+
 ## Select a role
 
 Read the selected role file before doing the work:

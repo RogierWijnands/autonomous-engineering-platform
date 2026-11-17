@@ -7,12 +7,12 @@ public sealed class AepDbContextFactory : IDesignTimeDbContextFactory<AepDbConte
 {
     public AepDbContext CreateDbContext(string[] args)
     {
-        var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__Aep");
-        if (string.IsNullOrWhiteSpace(connectionString))
-        {
-            throw new InvalidOperationException(
-                "Set the ConnectionStrings__Aep environment variable to run EF Core tooling.");
-        }
+        var configuration = new ConfigurationBuilder()
+            .SetBasePath(AppContext.BaseDirectory)
+            .AddJsonFile("appsettings.json")
+            .AddEnvironmentVariables()
+            .Build();
+        var connectionString = PostgresConnectionString.Get(configuration);
 
         var options = new DbContextOptionsBuilder<AepDbContext>()
             .UseNpgsql(connectionString)

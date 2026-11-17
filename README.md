@@ -90,27 +90,30 @@ Only model calls and the GitHub integration require internet access.
 
 ## Local database
 
-Copy `infrastructure/.env.example` to `infrastructure/.env` and set a unique
+Copy `.env.example` to `.env` in the repository root and set a unique
 `POSTGRES_PASSWORD`. The local `.env` file is ignored by Git. Start PostgreSQL
 from the repository root with `npm run db:up`; use `npm run db:logs` to follow
 its logs and `npm run db:down` to stop it. PostgreSQL listens only on
 `127.0.0.1:5432`.
 
 The EF Core model is in `src/Aep/Models/`; its PostgreSQL context and migrations
-are in `src/Aep/Database/`. Agent prompts, outputs, and tool results belong in
-an artifact store; the database model keeps bounded metadata, hashes, statuses,
-and artifact references instead. Audit events are append-only through the EF
-Core context.
+are in `src/Aep/Database/`. Non-secret PostgreSQL connection settings (host,
+port, database, and username) are in `src/Aep/appsettings.json`. The `startup`
+and `db:migrate` package scripts load the password from the root `.env`; the
+.NET application combines it with those settings.
+You can override the resulting connection string with `ConnectionStrings__Aep`.
+Agent prompts, outputs, and tool results belong in an artifact store; the
+database model keeps bounded metadata, hashes, statuses, and artifact
+references instead. Audit events are append-only through the EF Core context.
 
-Set the `ConnectionStrings__Aep` environment variable to a PostgreSQL
-connection string, then run `npm start` to start PostgreSQL and the AEP
-application. The app applies checked-in EF Core migrations before accepting
-requests. `npm run startup` starts only the application, and
-`npm run db:migrate` applies migrations explicitly. Create future migrations
-with:
+Run `npm start` to start PostgreSQL and the AEP application. The app applies
+checked-in EF Core migrations before accepting requests. `npm run startup`
+starts only the application (PostgreSQL must already be running), and
+`npm run db:migrate` starts PostgreSQL if needed and applies migrations
+explicitly. Create future migrations with:
 
 ```sh
-dotnet ef migrations add <MigrationName> --project src/Aep/Aep.csproj --startup-project src/Aep/Aep.csproj
+dotenv -e .env -- dotnet ef migrations add <MigrationName> --project src/Aep/Aep.csproj --startup-project src/Aep/Aep.csproj
 ```
 
 Build the .NET solution from the repository root with
