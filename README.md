@@ -156,12 +156,17 @@ For an existing subtask, the confirmation identifies its previous parent.
 The same action is available without dragging from issue details. Both issues
 retain their status. If the source Story has subtasks, the confirmation warns
 that they will become standalone Tasks, as with other Story type changes.
-The subtask detail breadcrumb links back to its parent Story.
+Subtask details identify and link to their parent Story, both near the issue
+heading and in the breadcrumb.
 Subtasks do not appear as separate board cards, but remain available in the
-list view and project totals. Board filters apply to the parent Story; its
-expanded list shows all its subtasks regardless of their individual status or
-search match. A subtask can be found directly using filters in list view.
-The board footer and column counts count only top-level issues.
+list view and project totals. Search and status filters also match subtasks on
+the board: matching subtasks expand under their parent Story in the Story's
+column, even when the Story itself does not match. Only matching subtasks are
+shown while filtering; contextual parents are labeled and counts distinguish
+top-level cards from matching subtasks. Clearing filters closes automatically
+expanded subtasks, but preserves those manually opened until manually closed.
+In list view, subtasks appear as individual filtered rows. When the project
+contains subtasks, a Subtask of column shows their parent issue IDs.
 The default health-check Story includes two example subtasks. Issue-ID prefixes
 are derived from the first word of the project name, and renaming a project
 updates issue IDs and subtask references.

@@ -101,6 +101,23 @@ export function IssueDetailPanel({
             {issue.summary}
           </h2>
           <p className="detail-key">{issue.key}</p>
+          {issue.parentIssueKey && (
+            <div className="detail-parent">
+              <span>Subtask of</span>
+              {parentIssue ? (
+                <button
+                  type="button"
+                  className="text-button"
+                  aria-label={`Open parent issue ${parentIssue.key}: ${parentIssue.summary}`}
+                  onClick={() => onOpenIssue(parentIssue)}
+                >
+                  {parentIssue.key}: {parentIssue.summary}
+                </button>
+              ) : (
+                <span>{issue.parentIssueKey} (parent issue not found)</span>
+              )}
+            </div>
+          )}
           <div className="detail-actions">
             <button
               type="button"

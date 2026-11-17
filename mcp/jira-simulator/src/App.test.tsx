@@ -63,12 +63,122 @@ describe("Jira Simulator", () => {
     expect(within(screen.getByRole("region", { name: "Done issues" })).getByText("2")).toBeInTheDocument();
 
     await user.selectOptions(screen.getByRole("combobox", { name: "Filter by status" }), "Done");
-    expect(screen.getByText(/Showing/)).toHaveTextContent("Showing 2 of 7 issues");
+    expect(screen.getByText(/Showing/)).toHaveTextContent("Showing 3 of 7 top-level issues · 1 matching subtask");
+    expect(screen.getByRole("button", { name: /Open subtask DEMO-1009/ })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "List" }));
     expect(screen.getByRole("button", {
       name: "Open issue DEMO-1009: Define health response format",
     })).toBeInTheDocument();
     expect(screen.getByText(/Showing/)).toHaveTextContent("Showing 3 of 9 issues");
+  });
+
+  it("shows the parent column for the selected project even when subtasks are filtered out", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(screen.getByRole("button", { name: "List" }));
+    const subtaskRow = screen.getByRole("button", { name: /Open issue DEMO-1008/ }).closest("tr");
+    expect(subtaskRow).not.toBeNull();
+    if (!subtaskRow) throw new Error("Subtask row not found.");
+    expect(within(subtaskRow).getByRole("cell", { name: "DEMO-1001" })).toBeInTheDocument();
+    await user.type(screen.getByRole("searchbox", { name: "Search issues" }), "DEMO-1002");
+    expect(screen.getByRole("columnheader", { name: "Subtask of" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Open issue DEMO-1008/ })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Create project" }));
+    const dialog = screen.getByRole("dialog", { name: "Create project" });
+    await user.type(within(dialog).getByRole("textbox", { name: /Project name/ }), "Alpha Project");
+    await user.click(within(dialog).getByRole("button", { name: "Create project" }));
+    await user.click(screen.getByRole("button", { name: "List" }));
+    expect(screen.queryByRole("columnheader", { name: "Subtask of" })).not.toBeInTheDocument();
+  });
+
+  it("finds matching subtasks under their parent and combines search and status filters", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    const search = screen.getByRole("searchbox", { name: "Search issues" });
+    const status = screen.getByRole("combobox", { name: "Filter by status" });
+    await user.type(search, "DEMO-1008");
+    const parent = screen.getByRole("region", { name: "In Progress issues" });
+    expect(within(parent).getByRole("button", { name: /^DEMO-1001/ })).toHaveTextContent("Shown for matching subtask");
+    expect(within(parent).getByRole("button", { name: /Subtasks for DEMO-1001/ })).toHaveAttribute("aria-expanded", "true");
+    expect(within(parent).getByRole("button", { name: /Open subtask DEMO-1008/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Open subtask DEMO-1009/ })).not.toBeInTheDocument();
+    await user.selectOptions(status, "Done");
+    expect(screen.queryByRole("button", { name: /^DEMO-1001/ })).not.toBeInTheDocument();
+    await user.selectOptions(status, "To Do");
+    expect(screen.getByRole("button", { name: /Open subtask DEMO-1008/ })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Clear filters" }));
+    expect(screen.getByRole("button", { name: "Subtasks for DEMO-1001" })).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("explains when a matching Story has no matching subtasks", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await user.type(screen.getByRole("searchbox", { name: "Search issues" }), "DEMO-1001");
+    const toggle = screen.getByRole("button", { name: "Subtasks for DEMO-1001, 0 of 2 match" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await user.click(toggle);
+    expect(screen.getByText("No subtasks match the filters.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Open subtask DEMO-1008/ })).not.toBeInTheDocument();
+    expect(screen.getByText(/Showing/)).toHaveTextContent("0 matching subtasks");
+  });
+
+  it("preserves manual expansion when filtering hides the Story and until it is manually closed", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(screen.getByRole("button", { name: "Subtasks for DEMO-1001" }));
+    const search = screen.getByRole("searchbox", { name: "Search issues" });
+    await user.type(search, "no matching issue");
+    expect(screen.queryByRole("button", { name: /Subtasks for DEMO-1001/ })).not.toBeInTheDocument();
+    await user.clear(search);
+    const toggle = screen.getByRole("button", { name: "Subtasks for DEMO-1001" });
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("button", { name: /Open subtask DEMO-1008/ })).toBeVisible();
+    await user.click(toggle);
+    await user.type(search, "DEMO-1008");
+    expect(screen.getByRole("button", { name: /Subtasks for DEMO-1001/ })).toHaveAttribute("aria-expanded", "true");
+    await user.clear(search);
+    expect(screen.getByRole("button", { name: "Subtasks for DEMO-1001" })).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("remembers a manual close while filtering, and a later manual reopen", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    const search = screen.getByRole("searchbox", { name: "Search issues" });
+    await user.click(screen.getByRole("button", { name: "Subtasks for DEMO-1001" }));
+    await user.type(search, "DEMO-1008");
+    let toggle = screen.getByRole("button", { name: /Subtasks for DEMO-1001/ });
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await user.clear(search);
+    expect(screen.getByRole("button", { name: "Subtasks for DEMO-1001" })).toHaveAttribute("aria-expanded", "false");
+    await user.type(search, "DEMO-1008");
+    toggle = screen.getByRole("button", { name: /Subtasks for DEMO-1001/ });
+    await user.click(toggle);
+    await user.click(toggle);
+    await user.clear(search);
+    expect(screen.getByRole("button", { name: "Subtasks for DEMO-1001" })).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("preserves expansion manually opened during filtering across views and project renaming", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    const search = screen.getByRole("searchbox", { name: "Search issues" });
+    await user.type(search, "DEMO-1001");
+    await user.click(screen.getByRole("button", { name: "Subtasks for DEMO-1001, 0 of 2 match" }));
+    await user.clear(search);
+    expect(screen.getByRole("button", { name: "Subtasks for DEMO-1001" })).toHaveAttribute("aria-expanded", "true");
+    await user.click(screen.getByRole("button", { name: "List" }));
+    await user.click(screen.getByRole("button", { name: "Board" }));
+    expect(screen.getByRole("button", { name: "Subtasks for DEMO-1001" })).toHaveAttribute("aria-expanded", "true");
+    await user.click(screen.getByRole("button", { name: "Edit project" }));
+    const dialog = screen.getByRole("dialog", { name: "Edit project" });
+    const name = within(dialog).getByRole("textbox", { name: /Project name/ });
+    await user.clear(name);
+    await user.type(name, "Updated Project");
+    await user.click(within(dialog).getByRole("button", { name: "Save changes" }));
+    expect(screen.getByRole("button", { name: "Subtasks for UPDATED-1001" })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("button", { name: /Open subtask UPDATED-1008/ })).toBeVisible();
   });
 
   it("exposes navigation, view controls, board columns, and project progress to assistive technology", () => {
@@ -142,7 +252,7 @@ describe("Jira Simulator", () => {
       "aria-pressed",
       "true",
     );
-    expect(screen.getByText("DEMO-1001")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Open issue DEMO-1001/ })).toBeInTheDocument();
   });
 
   it("moves an issue between board columns with drag and drop", () => {

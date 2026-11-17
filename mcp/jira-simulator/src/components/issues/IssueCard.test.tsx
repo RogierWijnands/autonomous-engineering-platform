@@ -1,8 +1,14 @@
+import { useState, type ComponentProps } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { Issue } from "../../types";
-import { IssueCard } from "./IssueCard";
+import { IssueCard as ControlledIssueCard } from "./IssueCard";
+
+function IssueCard(props: Omit<ComponentProps<typeof ControlledIssueCard>, "manuallyExpanded" | "onExpandedChange">) {
+  const [manuallyExpanded, setManuallyExpanded] = useState(false);
+  return <ControlledIssueCard {...props} manuallyExpanded={manuallyExpanded} onExpandedChange={(_, expanded) => setManuallyExpanded(expanded)} />;
+}
 
 const story: Issue = {
   key: "ALPHA-1001",
@@ -24,6 +30,9 @@ const subtask: Issue = {
   status: "Done",
 };
 const dragProps = {
+  totalSubtasks: 1,
+  filterKey: null,
+  contextOnly: false,
   isDropTarget: false,
   onDragStart: vi.fn(),
   onDragOver: vi.fn(),
@@ -70,13 +79,44 @@ describe("IssueCard subtasks", () => {
 
   it("does not offer a toggle for empty Stories or Tasks", () => {
     const { rerender } = render(
-      <IssueCard issue={story} subtasks={[]} instructionsId="instructions" subtaskInstructionsId="subtask-instructions" onOpen={vi.fn()} {...dragProps} />,
+      <IssueCard issue={story} subtasks={[]} instructionsId="instructions" subtaskInstructionsId="subtask-instructions" onOpen={vi.fn()} {...dragProps} totalSubtasks={0} />,
     );
     expect(screen.queryByRole("button", { name: /Subtasks for/ })).not.toBeInTheDocument();
     rerender(
       <IssueCard issue={subtask} subtasks={[subtask]} instructionsId="instructions" subtaskInstructionsId="subtask-instructions" onOpen={vi.fn()} {...dragProps} />,
     );
     expect(screen.queryByRole("button", { name: /Subtasks for/ })).not.toBeInTheDocument();
+  });
+
+  it("expands matching subtasks on filter changes and allows manual collapse", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <IssueCard issue={story} subtasks={[subtask]} instructionsId="instructions"
+        subtaskInstructionsId="subtask-instructions" onOpen={vi.fn()} {...dragProps} />,
+    );
+    const toggle = screen.getByRole("button", { name: "Subtasks for ALPHA-1001" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    rerender(
+      <IssueCard issue={story} subtasks={[subtask]} instructionsId="instructions"
+        subtaskInstructionsId="subtask-instructions" onOpen={vi.fn()} {...dragProps}
+        filterKey="Done" totalSubtasks={2} contextOnly />,
+    );
+    const filteredToggle = screen.getByRole("button", { name: "Subtasks for ALPHA-1001, 1 of 2 match" });
+    expect(filteredToggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("Shown for matching subtask")).toBeInTheDocument();
+    await user.click(filteredToggle);
+    expect(filteredToggle).toHaveAttribute("aria-expanded", "false");
+    rerender(
+      <IssueCard issue={story} subtasks={[subtask]} instructionsId="instructions"
+        subtaskInstructionsId="subtask-instructions" onOpen={vi.fn()} {...dragProps}
+        filterKey="search" totalSubtasks={2} contextOnly />,
+    );
+    expect(filteredToggle).toHaveAttribute("aria-expanded", "true");
+    rerender(
+      <IssueCard issue={story} subtasks={[subtask]} instructionsId="instructions"
+        subtaskInstructionsId="subtask-instructions" onOpen={vi.fn()} {...dragProps} />,
+    );
+    expect(screen.getByRole("button", { name: "Subtasks for ALPHA-1001" })).toHaveAttribute("aria-expanded", "false");
   });
 
   it("starts a drag with the subtask identity and provides its own instructions", async () => {

@@ -1,4 +1,4 @@
-import { useId, useState, type DragEvent } from "react";
+import { useEffect, useId, useState, type DragEvent } from "react";
 import { ChevronDown } from "lucide-react";
 import type { Issue } from "../../types";
 import { IssueTypeIcon } from "../common/IssueTypeIcon";
@@ -7,6 +7,11 @@ import { PriorityIcon } from "../common/PriorityIcon";
 interface IssueCardProps {
   issue: Issue;
   subtasks: Issue[];
+  totalSubtasks: number;
+  filterKey: string | null;
+  manuallyExpanded: boolean;
+  onExpandedChange: (issueKey: string, expanded: boolean) => void;
+  contextOnly: boolean;
   instructionsId: string;
   subtaskInstructionsId: string;
   isDropTarget: boolean;
@@ -20,6 +25,11 @@ interface IssueCardProps {
 export function IssueCard({
   issue,
   subtasks,
+  totalSubtasks,
+  filterKey,
+  manuallyExpanded,
+  onExpandedChange,
+  contextOnly,
   instructionsId,
   subtaskInstructionsId,
   isDropTarget,
@@ -29,9 +39,22 @@ export function IssueCard({
   onDrop,
   onDragEnd,
 }: IssueCardProps) {
-  const [expanded, setExpanded] = useState(false);
+  const [filterOverride, setFilterOverride] = useState<{ key: string; expanded: boolean } | null>(null);
   const subtasksId = useId();
-  const hasSubtasks = issue.issueType === "Story" && subtasks.length > 0;
+  const hasSubtasks = issue.issueType === "Story" && totalSubtasks > 0;
+  const expanded = filterKey && filterOverride?.key === filterKey
+    ? filterOverride.expanded
+    : manuallyExpanded || Boolean(filterKey && subtasks.length > 0);
+
+  useEffect(() => {
+    setFilterOverride(null);
+  }, [filterKey]);
+
+  function toggleSubtasks() {
+    const nextExpanded = !expanded;
+    onExpandedChange(issue.key, nextExpanded);
+    setFilterOverride(filterKey ? { key: filterKey, expanded: nextExpanded } : null);
+  }
 
   function startDragging(event: DragEvent<HTMLButtonElement>, draggedIssue: Issue) {
     if (draggedIssue.parentIssueKey) event.currentTarget.focus();
@@ -59,6 +82,7 @@ export function IssueCard({
           <span className="issue-key">{issue.key}</span>
         </span>
         <span className="issue-summary">{issue.summary}</span>
+        {contextOnly && <span className="issue-context">Shown for matching subtask</span>}
         <span className="issue-card-footer">
           <span className="issue-type-label">
             <IssueTypeIcon type={issue.issueType} />
@@ -87,15 +111,18 @@ export function IssueCard({
           <button
             className="card-subtasks-toggle"
             type="button"
-            aria-label={`Subtasks for ${issue.key}`}
+            aria-label={`Subtasks for ${issue.key}${filterKey ? `, ${subtasks.length} of ${totalSubtasks} match` : ""}`}
             aria-expanded={expanded}
             aria-controls={subtasksId}
-            onClick={() => setExpanded((current) => !current)}
+            onClick={toggleSubtasks}
           >
-            <span>Subtasks <span className="card-subtasks-count">{subtasks.length}</span></span>
+            <span>Subtasks <span className="card-subtasks-count">
+              {filterKey ? `${subtasks.length} of ${totalSubtasks} match` : totalSubtasks}
+            </span></span>
             <ChevronDown size={16} className={expanded ? "expanded" : ""} aria-hidden="true" />
           </button>
           <ul className="card-subtasks-list" id={subtasksId} hidden={!expanded}>
+            {subtasks.length === 0 && <li className="card-subtasks-empty">No subtasks match the filters.</li>}
             {subtasks.map((subtask) => (
               <li key={subtask.key}>
                 <button

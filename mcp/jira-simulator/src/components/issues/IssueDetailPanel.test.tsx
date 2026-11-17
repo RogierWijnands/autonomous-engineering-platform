@@ -93,12 +93,23 @@ describe("IssueDetailPanel subtasks", () => {
     const breadcrumb = screen.getByRole("navigation", { name: "Issue breadcrumb" });
     expect(breadcrumb).toHaveTextContent("Alpha Project / ALPHA-1001 / ALPHA-1002");
     expect(within(breadcrumb).getByText("ALPHA-1002")).toHaveAttribute("aria-current", "page");
+    const parentButton = screen.getByRole("button", { name: "Open parent issue ALPHA-1001: Implement validation" });
+    expect(parentButton).toHaveTextContent("ALPHA-1001: Implement validation");
+    expect(screen.getByText("Subtask of")).toBeInTheDocument();
+    fireEvent.click(parentButton);
+    expect(onOpenIssue).toHaveBeenCalledWith(story);
     fireEvent.click(within(breadcrumb).getByRole("button", { name: /ALPHA-1001/ }));
 
     expect(onOpenIssue).toHaveBeenCalledWith(story);
     expect(
       screen.queryByRole("button", { name: /Add subtask/ }),
     ).not.toBeInTheDocument();
+  });
+
+  it("reports the parent key when the referenced parent cannot be found", () => {
+    renderPanel(subtask);
+    expect(screen.getByText("ALPHA-1001 (parent issue not found)")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Open parent issue/ })).not.toBeInTheDocument();
   });
 
   it("offers a standalone action only for subtasks", () => {
@@ -137,6 +148,7 @@ describe("IssueDetailPanel subtasks", () => {
       />,
     );
     expect(screen.queryByRole("button", { name: "Make standalone task" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Subtask of")).not.toBeInTheDocument();
   });
 
   it("offers a move action for a subtask when a different parent is available", () => {

@@ -6,6 +6,10 @@ import { BoardColumn } from "./BoardColumn";
 interface IssueBoardProps {
   issues: Issue[];
   projectIssues: Issue[];
+  filteredIssues: Issue[];
+  filterKey: string | null;
+  expandedStoryKeys: ReadonlySet<string>;
+  onExpandedChange: (issueKey: string, expanded: boolean) => void;
   onOpenIssue: (issue: Issue) => void;
   onCreateIssue: () => void;
   onMoveIssue: (issueKey: string, status: IssueStatus) => void;
@@ -15,6 +19,10 @@ interface IssueBoardProps {
 export function IssueBoard({
   issues,
   projectIssues,
+  filteredIssues,
+  filterKey,
+  expandedStoryKeys,
+  onExpandedChange,
   onOpenIssue,
   onCreateIssue,
   onMoveIssue,
@@ -24,6 +32,7 @@ export function IssueBoard({
   const [issueDropTarget, setIssueDropTarget] = useState<string | null>(null);
   const [draggedIssue, setDraggedIssue] = useState<Issue | null>(null);
   const draggedIssueRef = useRef<Issue | null>(null);
+  const matchingKeys = new Set(filteredIssues.map((issue) => issue.key));
 
   function clearDrag() {
     draggedIssueRef.current = null;
@@ -85,6 +94,11 @@ export function IssueBoard({
         onto another issue to change its parent. You can also use the controls
         in its details.
       </p>
+      {filterKey && filteredIssues.some((issue) => issue.parentIssueKey) && (
+        <p className="board-filter-note">
+          Matching subtasks appear under their Story, in the Story&apos;s column.
+        </p>
+      )}
       <div className="board-grid">
         {issueStatuses.map((status) => (
           <BoardColumn
@@ -92,6 +106,10 @@ export function IssueBoard({
             status={status}
             issues={issues.filter((issue) => issue.status === status)}
             projectIssues={projectIssues}
+            matchingKeys={matchingKeys}
+            filterKey={filterKey}
+            expandedStoryKeys={expandedStoryKeys}
+            onExpandedChange={onExpandedChange}
             isDropTarget={dropTarget === status}
             issueDropTarget={issueDropTarget}
             showDropArea={Boolean(draggedIssue && (draggedIssue.parentIssueKey || draggedIssue.status !== status))}

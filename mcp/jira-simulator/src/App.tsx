@@ -43,6 +43,7 @@ type MakeStandaloneState = {
 function App() {
   const [projects, setProjects] = useState(initialProjects);
   const [issues, setIssues] = useState(initialIssues);
+  const [expandedStoryKeys, setExpandedStoryKeys] = useState<Set<string>>(() => new Set());
   const [selectedProjectId, setSelectedProjectId] = useState(initialProjects[0].id);
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
   const [editingIssue, setEditingIssue] = useState<Issue | null>(null);
@@ -83,9 +84,20 @@ function App() {
       );
     });
   }, [projectIssues, query, statusFilter]);
+  const filterKey = query.trim() || statusFilter !== "All"
+    ? JSON.stringify([query.trim().toLowerCase(), statusFilter])
+    : null;
+  const matchingIssueKeys = new Set(filteredIssues.map((issue) => issue.key));
+  const matchingParentKeys = new Set(
+    filteredIssues.flatMap((issue) => issue.parentIssueKey ? [issue.parentIssueKey] : []),
+  );
+  const matchingSubtaskCount = filteredIssues.filter((issue) => issue.parentIssueKey).length;
   const visibleIssues =
     view === "board"
-      ? filteredIssues.filter((issue) => !issue.parentIssueKey)
+      ? projectIssues.filter(
+          (issue) => !issue.parentIssueKey &&
+            (matchingIssueKeys.has(issue.key) || matchingParentKeys.has(issue.key)),
+        )
       : filteredIssues;
   const totalVisibleIssues =
     view === "board"
@@ -157,6 +169,16 @@ function App() {
         ),
       );
       if (previousPrefix !== updatedPrefix) {
+        setExpandedStoryKeys((current) => {
+          const updated = new Set(current);
+          for (const issue of issues) {
+            if (issue.projectId === editedProject.id && current.has(issue.key)) {
+              updated.delete(issue.key);
+              updated.add(`${updatedPrefix}${issue.key.slice(previousPrefix.length)}`);
+            }
+          }
+          return updated;
+        });
         setIssues((current) => {
           const updatedKeys = new Map(
             current
@@ -471,6 +493,17 @@ function App() {
               <IssueBoard
                 issues={visibleIssues}
                 projectIssues={projectIssues}
+                filteredIssues={filteredIssues}
+                filterKey={filterKey}
+                expandedStoryKeys={expandedStoryKeys}
+                onExpandedChange={(issueKey, expanded) => {
+                  setExpandedStoryKeys((current) => {
+                    const updated = new Set(current);
+                    if (expanded) updated.add(issueKey);
+                    else updated.delete(issueKey);
+                    return updated;
+                  });
+                }}
                 onOpenIssue={openIssue}
                 onCreateIssue={() => setIsCreateIssueOpen(true)}
                 onMoveIssue={moveIssue}
@@ -479,13 +512,17 @@ function App() {
             ) : (
               <IssueList
                 issues={visibleIssues}
+                hasSubtasks={projectIssues.some((issue) => Boolean(issue.parentIssueKey))}
                 onOpenIssue={openIssue}
               />
             )}
-            <div className="board-footer">
+            <div className="board-footer" aria-live="polite" aria-atomic="true">
               <span>
                 Showing <strong>{visibleIssues.length}</strong> of{" "}
-                {totalVisibleIssues} issues
+                {totalVisibleIssues} {view === "board" && filterKey ? "top-level issues" : "issues"}
+                {view === "board" && filterKey && (
+                  <> · {matchingSubtaskCount} matching {matchingSubtaskCount === 1 ? "subtask" : "subtasks"}</>
+                )}
               </span>
             </div>
           </section>

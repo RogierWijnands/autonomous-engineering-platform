@@ -7,6 +7,10 @@ interface BoardColumnProps {
   status: IssueStatus;
   issues: Issue[];
   projectIssues: Issue[];
+  matchingKeys: Set<string>;
+  filterKey: string | null;
+  expandedStoryKeys: ReadonlySet<string>;
+  onExpandedChange: (issueKey: string, expanded: boolean) => void;
   isDropTarget: boolean;
   issueDropTarget: string | null;
   showDropArea: boolean;
@@ -27,6 +31,10 @@ export function BoardColumn({
   status,
   issues,
   projectIssues,
+  matchingKeys,
+  filterKey,
+  expandedStoryKeys,
+  onExpandedChange,
   isDropTarget,
   issueDropTarget,
   showDropArea,
@@ -70,16 +78,22 @@ export function BoardColumn({
         </div>
       )}
       <div className="issue-stack">
-        {issues.map((issue) => (
-          <IssueCard
+        {issues.map((issue) => {
+          const subtasks = projectIssues.filter(
+            (candidate) =>
+              candidate.projectId === issue.projectId &&
+              candidate.issueType === "Task" &&
+              candidate.parentIssueKey === issue.key,
+          );
+          return <IssueCard
             key={issue.key}
             issue={issue}
-            subtasks={projectIssues.filter(
-              (candidate) =>
-                candidate.projectId === issue.projectId &&
-                candidate.issueType === "Task" &&
-                candidate.parentIssueKey === issue.key,
-            )}
+            subtasks={filterKey ? subtasks.filter((subtask) => matchingKeys.has(subtask.key)) : subtasks}
+            totalSubtasks={subtasks.length}
+            filterKey={filterKey}
+            manuallyExpanded={expandedStoryKeys.has(issue.key)}
+            onExpandedChange={onExpandedChange}
+            contextOnly={Boolean(filterKey && !matchingKeys.has(issue.key))}
             instructionsId={instructionsId}
             subtaskInstructionsId={subtaskInstructionsId}
             isDropTarget={issueDropTarget === issue.key}
@@ -88,11 +102,11 @@ export function BoardColumn({
             onDragOver={onIssueDragOver}
             onDrop={onIssueDrop}
             onDragEnd={onDragEnd}
-          />
-        ))}
+          />;
+        })}
         {issues.length === 0 && (
           <div className="empty-column">
-            <span>No issues here yet</span>
+            <span>{filterKey ? "No matching issues" : "No issues here yet"}</span>
           </div>
         )}
       </div>

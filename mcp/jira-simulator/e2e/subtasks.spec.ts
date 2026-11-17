@@ -91,7 +91,6 @@ test("creates a Task subtask under a Story", async ({ page }) => {
   });
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
   await expect(subtask).toHaveCount(0);
-  await page.getByRole("combobox", { name: "Filter by status" }).selectOption("In Progress");
   await expect(page.locator(".issue-card").filter({ hasText: "DEMO-1010" })).toHaveCount(0);
   await toggle.focus();
   await page.keyboard.press("Enter");
@@ -119,7 +118,7 @@ test("creates a Task subtask under a Story", async ({ page }) => {
   const projectDialog = page.getByRole("dialog", { name: "Edit project" });
   await projectDialog.getByRole("textbox", { name: "Project name" }).fill("Updated Project");
   await projectDialog.getByRole("button", { name: "Save changes" }).click();
-  await page.getByRole("button", { name: "Subtasks for UPDATED-1001" }).click();
+  await expect(page.getByRole("button", { name: "Subtasks for UPDATED-1001" })).toHaveAttribute("aria-expanded", "true");
   await page.getByRole("button", {
     name: "Open subtask UPDATED-1010: Add browser-level subtask coverage (Done)",
   }).click();
@@ -130,16 +129,93 @@ test("creates a Task subtask under a Story", async ({ page }) => {
   ).toBeVisible();
 });
 
-test("keeps subtasks searchable in list view without separate board cards", async ({ page }) => {
+test("keeps manually expanded subtasks open through filtering until closed", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 800 });
+  await page.goto("/");
+  const toggle = page.getByRole("button", { name: "Subtasks for DEMO-1001" });
+  await toggle.focus();
+  await page.keyboard.press("Enter");
+  const search = page.getByRole("searchbox", { name: "Search issues" });
+  await search.fill("no matching issue");
+  await expect(toggle).toHaveCount(0);
+  await search.clear();
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByRole("button", { name: /Open subtask DEMO-1008/ })).toBeVisible();
+  await toggle.focus();
+  await page.keyboard.press("Space");
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await search.fill("DEMO-1008");
+  await expect(page.getByRole("button", { name: /Subtasks for DEMO-1001/ })).toHaveAttribute("aria-expanded", "true");
+  await search.clear();
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+});
+
+test("shows matching subtasks in their parent context and as individual list rows", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("searchbox", { name: "Search issues" }).fill("DEMO-1009");
-  await expect(page.locator(".issue-card")).toHaveCount(0);
-  await expect(page.locator(".board-footer")).toHaveText(/Showing 0 of 7 issues/);
+  await expect(page.getByRole("region", { name: "In Progress issues" }).getByRole("button", { name: /^DEMO-1001/ })).toContainText("Shown for matching subtask");
+  await expect(page.getByRole("button", { name: /Open subtask DEMO-1009/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Open subtask DEMO-1008/ })).toHaveCount(0);
+  await expect(page.locator(".board-footer")).toHaveText(/Showing 1 of 7 top-level issues · 1 matching subtask/);
   await page.getByRole("button", { name: "List", exact: true }).click();
   await expect(page.getByRole("button", {
     name: "Open issue DEMO-1009: Define health response format",
   })).toBeVisible();
   await expect(page.locator(".board-footer")).toHaveText(/Showing 1 of 9 issues/);
+  const table = page.getByRole("table", { name: "Issues" });
+  await expect(table.getByRole("columnheader", { name: "Subtask of" })).toBeVisible();
+  await expect(table.getByRole("row").filter({ hasText: "DEMO-1009" }).getByRole("cell", { name: "DEMO-1001" })).toBeVisible();
+});
+
+test("shows the parent in list and detail views with keyboard access at desktop and mobile widths", async ({ page }) => {
+  for (const width of [1200, 320]) {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto("/");
+    await page.getByRole("button", { name: "List", exact: true }).click();
+    const table = page.getByRole("table", { name: "Issues" });
+    const parentHeader = table.getByRole("columnheader", { name: "Subtask of" });
+    const childRow = table.getByRole("row").filter({ hasText: "DEMO-1008" });
+    const parentCell = childRow.getByRole("cell", { name: "DEMO-1001" });
+    await expect(parentHeader).toBeVisible();
+    await expect(parentCell).toBeVisible();
+    if (width === 320) {
+      await expect(page.getByText("Scroll horizontally to see all columns.")).toBeVisible();
+      const region = page.getByRole("region", { name: "Issue list, scroll horizontally if needed" });
+      await region.focus();
+      await page.keyboard.press("ArrowRight");
+      await expect.poll(() => region.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
+    }
+    await childRow.getByRole("button", { name: /Open issue DEMO-1008/ }).click();
+    const parent = page.getByRole("button", { name: "Open parent issue DEMO-1001: Add health check endpoint" });
+    await expect(page.getByRole("dialog").getByText("Subtask of", { exact: true })).toBeVisible();
+    await expect(parent).toBeVisible();
+    await parent.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("heading", { name: "Add health check endpoint" })).toBeFocused();
+  }
+});
+
+test("filters subtasks by their own status and keeps keyboard controls usable on mobile", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 800 });
+  await page.goto("/");
+  await page.getByRole("combobox", { name: "Filter by status" }).selectOption("Done");
+  const parent = page.getByRole("region", { name: "In Progress issues" });
+  await expect(parent.getByRole("button", { name: /^DEMO-1001/ })).toContainText("Shown for matching subtask");
+  const toggle = parent.getByRole("button", { name: "Subtasks for DEMO-1001, 1 of 2 match" });
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await expect(parent.getByRole("button", { name: /Open subtask DEMO-1009/ })).toBeVisible();
+  await expect(parent.getByRole("button", { name: /Open subtask DEMO-1008/ })).toHaveCount(0);
+  await toggle.focus();
+  await page.keyboard.press("Enter");
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await page.keyboard.press("Space");
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await parent.getByRole("button", { name: /Open subtask DEMO-1009/ }).click();
+  await expect(page.getByRole("button", { name: /Open parent story DEMO-1001/ })).toBeVisible();
+  await page.getByRole("button", { name: "Close issue details" }).click();
+  await page.getByRole("button", { name: "Clear filters" }).click();
+  await expect(page.getByRole("button", { name: "Subtasks for DEMO-1001" })).toHaveAttribute("aria-expanded", "true");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
 });
 
 test("drags a subtask to a column to make it standalone", async ({ page }) => {

@@ -1,8 +1,27 @@
+import { useState, type ComponentProps } from "react";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { Issue } from "../../types";
-import { IssueBoard } from "./IssueBoard";
+import { IssueBoard as ControlledIssueBoard } from "./IssueBoard";
+
+function IssueBoard(props: Omit<ComponentProps<typeof ControlledIssueBoard>, "expandedStoryKeys" | "onExpandedChange">) {
+  const [expandedStoryKeys, setExpandedStoryKeys] = useState<Set<string>>(() => new Set());
+  return (
+    <ControlledIssueBoard
+      {...props}
+      expandedStoryKeys={expandedStoryKeys}
+      onExpandedChange={(key, expanded) => {
+        setExpandedStoryKeys((current) => {
+          const updated = new Set(current);
+          if (expanded) updated.add(key);
+          else updated.delete(key);
+          return updated;
+        });
+      }}
+    />
+  );
+}
 
 const issue: Issue = {
   key: "ALPHA-1001",
@@ -32,7 +51,7 @@ function fireDragEvent(
 }
 
 describe("IssueBoard", () => {
-  it("shows only the Story's project subtasks even when their cards are filtered out", async () => {
+  it("shows only subtasks from the Story's project", async () => {
     const user = userEvent.setup();
     const subtask: Issue = {
       ...issue,
@@ -53,6 +72,8 @@ describe("IssueBoard", () => {
       <IssueBoard
         issues={[issue]}
         projectIssues={[issue, subtask, otherProject]}
+        filteredIssues={[issue, subtask]}
+        filterKey={null}
         onOpenIssue={onOpenIssue}
         onCreateIssue={vi.fn()}
         onMoveIssue={vi.fn()}
@@ -80,6 +101,8 @@ describe("IssueBoard", () => {
       <IssueBoard
         issues={[issue]}
         projectIssues={[issue]}
+        filteredIssues={[issue]}
+        filterKey={null}
         onOpenIssue={vi.fn()}
         onCreateIssue={vi.fn()}
         onMoveIssue={onMoveIssue}
@@ -116,6 +139,8 @@ describe("IssueBoard", () => {
       <IssueBoard
         issues={[issue]}
         projectIssues={[issue]}
+        filteredIssues={[issue]}
+        filterKey={null}
         onOpenIssue={vi.fn()}
         onCreateIssue={vi.fn()}
         onMoveIssue={onMoveIssue}
@@ -163,6 +188,8 @@ describe("IssueBoard", () => {
       <IssueBoard
         issues={[issue]}
         projectIssues={[issue]}
+        filteredIssues={[issue]}
+        filterKey={null}
         onOpenIssue={vi.fn()}
         onCreateIssue={vi.fn()}
         onMoveIssue={onMoveIssue}
@@ -196,6 +223,8 @@ describe("IssueBoard", () => {
       <IssueBoard
         issues={[issue, target]}
         projectIssues={[issue, subtask, target]}
+        filteredIssues={[issue, subtask, target]}
+        filterKey={null}
         onOpenIssue={vi.fn()}
         onCreateIssue={vi.fn()}
         onMoveIssue={onMoveIssue}
@@ -257,6 +286,8 @@ describe("IssueBoard", () => {
       <IssueBoard
         issues={[issue, target]}
         projectIssues={[issue, target]}
+        filteredIssues={[issue, target]}
+        filterKey={null}
         onOpenIssue={vi.fn()}
         onCreateIssue={vi.fn()}
         onMoveIssue={onMoveIssue}
