@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "levels": {
+    "low": {
+      "examples": ["Documentation-only changes", "Changes isolated to tests"],
+      "approvalRequired": false
+    },
+    "medium": {
+      "examples": ["Application behavior changes", "Dependency updates"],
+      "approvalRequired": true
+    },
+    "high": {
+      "examples": ["Authentication or authorization changes", "Production infrastructure changes", "Data migrations"],
+      "approvalRequired": true
+    }
+  },
+  "defaultLevel": "medium"
+}

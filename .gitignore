@@ -1,0 +1,57 @@
+# .NET
+**/bin/
+**/obj/
+*.user
+*.suo
+*.snupkg
+**/appsettings.Local.json
+**/appsettings.*.local.json
+
+# Node.js
+node_modules/
+npm-debug.log*
+**/dist/
+**/coverage/
+
+# Environment, local configuration, and secrets
+.env
+.env.*
+!.env.example
+secrets/
+**/secrets/
+*.secret
+*.secrets
+*.credentials
+credentials
+
+# Private keys, certificates, and local cloud credentials
+*.pem
+*.key
+*.p12
+*.pfx
+.ssh/
+.aws/
+.azure/
+.kube/
+service-account*.json
+
+# Local infrastructure state and overrides
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+.terraform/
+docker-compose.override.yml
+
+# Local databases, dumps, and backups
+*.sqlite
+*.sqlite3
+*.db
+*.dump
+*.bak
+
+# IDE and OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
