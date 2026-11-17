@@ -49,7 +49,7 @@ warranted, state why.
   it is not applicable. Developer, both UI/UX stages, and Tester must consume
   the complete Analyst and Architect registers, account for every ID, and
   pass the evidence onward; summaries must not drop requirements.
-- Use `.vscode/mcp.json`'s isolated Playwright MCP server for interactive
+- Use `.mcp.json`'s isolated Playwright MCP server for interactive
   browser review when connected. The simulator also provides Playwright
   browser tests; follow `docs/accessibility-testing.md` for setup.
 - Run UI/UX twice in the role sequence for every request. After Architect and

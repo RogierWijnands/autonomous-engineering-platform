@@ -57,4 +57,3 @@ docker-compose.override.yml
 .idea/
 .vscode/*
 !.vscode/extensions.json
-!.vscode/mcp.json

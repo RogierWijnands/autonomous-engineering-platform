@@ -1,0 +1,25 @@
+{
+	"mcpServers": {
+		"playwright": {
+			"type": "stdio",
+			"command": "npm",
+			"args": [
+				"exec",
+				"--prefix",
+				"mcp/jira-simulator",
+				"--",
+				"playwright-mcp",
+				"--browser",
+				"chromium",
+				"--isolated",
+				"--host",
+				"127.0.0.1",
+				"--allowed-origins",
+				"http://127.0.0.1:5173;http://127.0.0.1:4173"
+			],
+			"tools": [
+				"*"
+			]
+		}
+	}
+}

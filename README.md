@@ -183,7 +183,7 @@ npm audit --prefix mcp/jira-simulator
 ```
 
 For interactive browser review, VS Code can start the isolated Playwright MCP
-server configured in `.vscode/mcp.json` after you approve it. Run the
+server configured in `.mcp.json` after you approve it. Run the
 repeatable browser suite with `npm run test:e2e --prefix mcp/jira-simulator`.
 Browser review setup and commands are documented in
 [Accessibility testing](docs/accessibility-testing.md).
