@@ -102,13 +102,16 @@ repository root. The **Conventional commits** GitHub Actions workflow checks
 commits on every branch push, all commits in a pull request, and the pull
 request title. Repository rulesets require that status check on every branch.
 
-Pull requests to `develop` must come from `feature/*` branches and are
+Pull requests to `develop` may come from branches with any name and are
 squash-merged. Pull requests to `main` must come from `develop` and use a merge
-commit. Both branches require a human approval and passing status checks;
-direct updates and force pushes are blocked. This keeps the `develop` history
-as an ancestor of `main`, so merging a fully integrated `develop` into `main`
-does not introduce code changes already present in `develop`. See
-[Contributing](docs/contributing.md) for details. Use
+commit. Both branches require a human approval and passing status checks for
+normal merges; the repository owner can bypass the approval rule, but that
+does not count as an approval. Direct updates and force pushes are blocked.
+Merged pull request source branches are automatically deleted, while protected
+branches remain protected.
+This keeps the `develop` history as an ancestor of `main`, so merging a fully
+integrated `develop` into `main` does not introduce code changes already
+present in `develop`. See [Contributing](docs/contributing.md) for details. Use
 **Settings → Rules → Rulesets** to review the active rulesets.
 
 ## Status

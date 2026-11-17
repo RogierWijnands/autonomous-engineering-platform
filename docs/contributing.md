@@ -29,22 +29,25 @@ commits on branch pushes, commits in pull requests, and pull request titles.
 
 ## Branches and pull requests
 
-- Name feature branches `feature/<short-description>`.
-- Changes to `develop` must be proposed through a pull request from a
-  `feature/*` branch.
+- Use a descriptive name for your working branch; no particular prefix is
+  required.
+- Changes to `develop` must be proposed through a pull request from a branch
+  with any name.
 - Changes to `main` must be proposed through a pull request from `develop`.
 - Pull requests to `develop` are squash-merged. Pull requests to `main` use a
   merge commit so the commits already integrated into `develop` remain in
   `main`'s ancestry.
 - Both protected branches require at least one human approval and all required
   status checks to pass. GitHub does not count approval from the pull request
-  author.
+  author. The repository owner can bypass the approval rule when merging a
+  pull request; this is not recorded as an approval and is not limited to
+  owner-authored pull requests.
 - Direct human updates, force pushes, and branch deletion are blocked for
   `main` and `develop`.
-- The `pr-source-branch-policy.yml` workflow enforces these source branch
-  restrictions.
+- Merged pull request source branches are automatically deleted. Protected
+  branches such as `develop` and `main` are retained.
+- The `pr-source-branch-policy.yml` workflow enforces the rule that pull
+  requests to `main` must come from `develop`.
 
-Repository rulesets enforce these requirements. GitHub does not count
-approval from the pull request author, so ask another collaborator to approve
-your PR. Do not rely on local hooks alone; hooks can be bypassed on a developer
-machine.
+Repository rulesets enforce these requirements. Do not rely on local hooks
+alone; hooks can be bypassed on a developer machine.

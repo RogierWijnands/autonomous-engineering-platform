@@ -22,8 +22,3 @@ jobs:
             echo "Pull requests targeting main must come from develop."
             exit 1
           fi
-
-          if [[ "$BASE_REF" == "develop" && ! "$HEAD_REF" =~ ^feature/.+ ]]; then
-            echo "Pull requests targeting develop must come from a feature/* branch."
-            exit 1
-          fi
