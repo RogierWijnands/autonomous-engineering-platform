@@ -2,11 +2,17 @@
 
 ## Workspace agent
 
-In VS Code, select **Orchestrator** from the chat agent picker for a
-single entry point. It chooses the most relevant role description from
-`agents/` based on your request. The role files remain the source of truth; the
-workspace agent applies them as instructions rather than launching separate
-agents.
+In VS Code, use **Orchestrator** from the chat agent picker for repository
+work. It always applies Analyst → Architect → UI/UX design → Developer → UI/UX
+review → Tester → Reviewer, using each handoff as the next role's input. For
+frontend changes, UI/UX supplies the design brief before implementation and
+reviews the result afterward. If no interface changes, both UI/UX stages
+report not applicable with a reason. Every role uses WCAG 2.2 AA as the
+engineering target for user-facing interfaces; this is not a claim of legal
+compliance. Every role reports what it did and marks unnecessary work, such as
+tests for a documentation-only change, as not applicable with a reason. The
+role files remain the source of truth; the workspace agent applies them as
+instructions rather than launching separate agents.
 
 ## Commit messages
 
@@ -57,7 +63,7 @@ alone; hooks can be bypassed on a developer machine.
 ## Creating a pull request
 
 In the VS Code Orchestrator chat, ask **"Maak een PR"** to run the standard
-workflow for the current open changes. The `/create-pr` prompt is also
+workflow for the current open changes. The `/create-pr` skill is also
 available. It reviews the changes, creates a descriptive branch, runs relevant
 validation, writes a Conventional Commit with implementation and validation
 details, pushes the branch, and opens a draft PR to `develop`.

@@ -1,8 +1,8 @@
-namespace Aep.Workflows.Tickets;
+namespace Aep.Workflows.Issues;
 
 using Aep.Workflows.Workflows;
 
-public sealed class Ticket
+public sealed class Issue
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public string Source { get; set; } = string.Empty;

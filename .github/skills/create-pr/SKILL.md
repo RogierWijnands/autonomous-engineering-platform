@@ -1,8 +1,8 @@
 ---
-mode: agent
-description: Branch, commit, push, and open a draft PR to develop for the current reviewed changes.
+name: create-pr
+description: "Branch, commit, push, and open a draft PR to develop for the current reviewed changes."
+disable-model-invocation: true
 ---
-
 Create a draft pull request to `develop` for the current open changes. Execute
 the workflow; do not merely propose commands.
 

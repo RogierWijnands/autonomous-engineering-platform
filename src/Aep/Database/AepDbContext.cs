@@ -3,7 +3,7 @@ using Aep.Workflows.Approvals;
 using Aep.Workflows.Auditing;
 using Aep.Workflows.Policies;
 using Aep.Workflows.PullRequests;
-using Aep.Workflows.Tickets;
+using Aep.Workflows.Issues;
 using Aep.Workflows.Workflows;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
@@ -15,7 +15,7 @@ public sealed class AepDbContext(DbContextOptions<AepDbContext> options) : DbCon
     public DbSet<Workflow> Workflows => Set<Workflow>();
     public DbSet<WorkflowStep> WorkflowSteps => Set<WorkflowStep>();
     public DbSet<AgentExecution> AgentExecutions => Set<AgentExecution>();
-    public DbSet<Ticket> Tickets => Set<Ticket>();
+    public DbSet<Issue> Issues => Set<Issue>();
     public DbSet<Approval> Approvals => Set<Approval>();
     public DbSet<PolicyDecision> PolicyDecisions => Set<PolicyDecision>();
     public DbSet<PullRequest> PullRequests => Set<PullRequest>();
@@ -23,25 +23,25 @@ public sealed class AepDbContext(DbContextOptions<AepDbContext> options) : DbCon
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.Entity<Ticket>(entity =>
+        modelBuilder.Entity<Issue>(entity =>
         {
-            entity.HasKey(ticket => ticket.Id);
-            entity.Property(ticket => ticket.Source).HasMaxLength(64).IsRequired();
-            entity.Property(ticket => ticket.ExternalId).HasMaxLength(128).IsRequired();
-            entity.Property(ticket => ticket.ProjectKey).HasMaxLength(64).IsRequired();
-            entity.Property(ticket => ticket.Summary).HasMaxLength(512).IsRequired();
-            entity.Property(ticket => ticket.Status).HasMaxLength(64).IsRequired();
-            entity.Property(ticket => ticket.Url).HasMaxLength(2048);
-            entity.HasIndex(ticket => new { ticket.Source, ticket.ExternalId }).IsUnique();
+            entity.HasKey(issue => issue.Id);
+            entity.Property(issue => issue.Source).HasMaxLength(64).IsRequired();
+            entity.Property(issue => issue.ExternalId).HasMaxLength(128).IsRequired();
+            entity.Property(issue => issue.ProjectKey).HasMaxLength(64).IsRequired();
+            entity.Property(issue => issue.Summary).HasMaxLength(512).IsRequired();
+            entity.Property(issue => issue.Status).HasMaxLength(64).IsRequired();
+            entity.Property(issue => issue.Url).HasMaxLength(2048);
+            entity.HasIndex(issue => new { issue.Source, issue.ExternalId }).IsUnique();
         });
 
         modelBuilder.Entity<Workflow>(entity =>
         {
             entity.HasKey(workflow => workflow.Id);
             entity.Property(workflow => workflow.Status).HasConversion<string>().HasMaxLength(32);
-            entity.HasOne(workflow => workflow.Ticket)
-                .WithMany(ticket => ticket.Workflows)
-                .HasForeignKey(workflow => workflow.TicketId)
+            entity.HasOne(workflow => workflow.Issue)
+                .WithMany(issue => issue.Workflows)
+                .HasForeignKey(workflow => workflow.IssueId)
                 .OnDelete(DeleteBehavior.Restrict);
             entity.HasIndex(workflow => workflow.Status);
             entity.HasIndex(workflow => workflow.CreatedAt);
@@ -163,6 +163,7 @@ public sealed class AepDbContext(DbContextOptions<AepDbContext> options) : DbCon
 
     private void EnsureAuditEventsAreAppendOnly()
     {
+        // Reject edits before persistence so the audit trail cannot be rewritten.
         var changedAuditEvents = ChangeTracker.Entries<AuditEvent>()
             .Where(entry => entry.State is EntityState.Modified or EntityState.Deleted)
             .Select(entry => entry.Entity.Id)
