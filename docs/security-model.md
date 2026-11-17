@@ -1,105 +1,102 @@
-# Beveiligingsmodel
+# Security Model
 
-## Status en reikwijdte
+## Status and scope
 
-Dit document beschrijft de beoogde beveiligingsgrenzen voor de lokale AEP. Het
-is een ontwerp-baseline, geen volledige threat model en geen bewijs dat
-beveiligingscontroles al zijn geïmplementeerd. De JSON-bestanden in `policies/`
-zijn configuratiestartpunten; ze bieden geen bescherming totdat code ze
-valideert en afdwingt.
+This document describes the intended security boundaries for the local AEP. It
+is a design baseline, not a complete threat model and not evidence that
+security controls have already been implemented. The JSON files in `policies/`
+are configuration starting points; they provide no protection until code
+validates and enforces them.
 
 ## Assets
 
-- GitHub-repositories, branches en pull requests.
-- GitHub-credentials en eventuele modeltoegang.
-- Tickets en eventueel vertrouwelijke inhoud in tickets of repositories.
-- Workflowstatus, agentresultaten en auditgegevens in PostgreSQL.
-- De ontwikkelmachine en bestanden die daarop staan.
-- Integriteit van de code, tests en artefacten die agents produceren.
+- GitHub repositories, branches, and pull requests.
+- GitHub credentials and any model access.
+- Tickets and potentially confidential content in tickets or repositories.
+- Workflow state, agent results, and audit data in PostgreSQL.
+- The development machine and the files stored on it.
+- The integrity of code, tests, and artifacts produced by agents.
 
-## Vertrouwensgrenzen
+## Trust boundaries
 
-1. **Externe/onbetrouwbare inhoud:** ticketbeschrijvingen, comments,
-   repositorybestanden, modeluitvoer, MCP-responses en tooluitvoer zijn data,
-   geen beleid of instructies met verhoogde autoriteit.
-2. **Agentcontainer:** code en commando's in de workspace kunnen onbetrouwbaar
-   zijn. De container is geïsoleerd en bevat geen GitHub-token, Docker-socket
-   of toegang tot persoonlijke bestanden.
-3. **AEP-host:** de host voert policycontroles uit en is de enige component die
-   GitHub-acties kan uitvoeren. De host blijft zelf een hoogwaardig
-   beveiligingsdoel.
-4. **Lokale diensten:** Jira-simulator, MCP-server, API en database zijn
-   afzonderlijke vertrouwensgrenzen. Alleen noodzakelijke verbindingen worden
-   toegestaan; lokale beschikbaarheid alleen is geen authenticatie.
-5. **Menselijke goedkeuring:** een goedkeuring is een expliciete
-   workflowbeslissing en moet aan de juiste actie en wijzigingsset gebonden
-   zijn.
+1. **External/untrusted content:** ticket descriptions, comments, repository
+   files, model output, MCP responses, and tool output are data, not policy or
+   instructions with elevated authority.
+2. **Agent container:** code and commands in the workspace may be untrusted.
+   The container is isolated and has no GitHub token, Docker socket, or access
+   to personal files.
+3. **AEP host:** the host performs policy checks and is the only component
+   allowed to perform GitHub actions. The host itself remains a high-value
+   security target.
+4. **Local services:** the Jira simulator, MCP server, API, and database are
+   separate trust boundaries. Only necessary connections should be allowed;
+   local availability alone is not authentication.
+5. **Human approval:** an approval is an explicit workflow decision and must
+   be bound to the correct action and change set.
 
-## Bedreigingen en beoogde beheersmaatregelen
+## Threats and intended controls
 
-| Bedreiging | Beoogde beheersmaatregel |
+| Threat | Intended control |
 |---|---|
-| Prompt injection via ticket, code of tooluitvoer | Behandel externe inhoud als onbetrouwbare data; laat deze nooit policy, rechten of goedkeuringsvereisten wijzigen. |
-| Onbedoelde of schadelijke agentacties | Beperk agenttools en workspace; voer externe effecten via gecontroleerde host-side adapters uit. |
-| Diefstal van GitHub-credentials | Plaats geen GitHub-token in de agentcontainer, prompt, repository of logs; laat credentials alleen door de host gebruiken. |
-| Container escape of toegang tot hostbestanden | Geen Docker-socket of persoonlijke bestanden mounten; beperk capabilities, mounts, netwerk en resources. De precieze Docker-hardening moet nog worden ontworpen en getest. |
-| Ongeautoriseerde webhook of herhaalde levering | Verifieer webhook-authenticiteit, valideer input en maak verwerking idempotent. Exact protocol en opslagmechanisme zijn nog open punten. |
-| Ongewenste repository- of PR-wijziging | Beperk GitHub-app/tokenrechten en toegestane repository/scope; vereist menselijke PR-review voordat samenvoegen plaatsvindt. |
-| Verlies of manipulatie van workflow/auditgegevens | Gebruik gecontroleerde database-toegang, consistente writes en passende back-ups; ontwerp retentie en integriteitscontrole vóór productiegebruik. |
-| Secrets in logs of agentuitvoer | Redigeer gevoelige waarden, beperk logtoegang en voorkom dat geheimen aan agents worden doorgegeven. |
+| Prompt injection through tickets, code, or tool output | Treat external content as untrusted data; never allow it to change policy, permissions, or approval requirements. |
+| Unintended or harmful agent actions | Restrict agent tools and workspace; perform external side effects through controlled host-side adapters. |
+| Theft of GitHub credentials | Do not put GitHub tokens in the agent container, prompts, repository, or logs; allow only the host to use credentials. |
+| Container escape or access to host files | Do not mount the Docker socket or personal files; restrict capabilities, mounts, network, and resources. Exact Docker hardening still needs to be designed and tested. |
+| Unauthorized webhook or repeated delivery | Verify webhook authenticity, validate input, and make processing idempotent. The exact protocol and storage mechanism remain open decisions. |
+| Unwanted repository or PR changes | Restrict GitHub app/token permissions and allowed repository scope; require human PR review before merging. |
+| Loss or tampering of workflow/audit data | Use controlled database access, consistent writes, and appropriate backups; design retention and integrity controls before production use. |
+| Secrets in logs or agent output | Redact sensitive values, restrict log access, and prevent secrets from being passed to agents. |
 
-## Autorisatie en goedkeuring
+## Authorization and approval
 
-- Default-deny voor niet-expliciet toegestane acties.
-- Agentrollen krijgen alleen minimale taakgebonden tools.
-- Productie-impact en externe side-effects vereisen menselijke goedkeuring volgens
-  het beleid.
-- Hoog-risicowijzigingen vereisen goedkeuring; de initiële classificatie staat in
+- Deny by default any action that is not explicitly allowed.
+- Give agent roles only the minimum task-specific tools.
+- Require human approval for production-impacting changes and external
+  side-effects according to policy.
+- Require approval for high-risk changes; the initial classification is in
   `policies/risk-classification.json`.
-- Goedkeuring moet worden vastgelegd met actor, tijdstip, workflow, actie en
-  wijzigingscontext. Een wijziging van de goed te keuren inhoud maakt de
-  eerdere goedkeuring ongeldig.
-- Agents mogen hun eigen risico- of goedkeuringsstatus niet verlagen.
+- Record approvals with the actor, time, workflow, action, and change context.
+  A change to the content under review invalidates the previous approval.
+- Agents must not be able to lower their own risk or approval status.
 
-De precieze identiteit van goedkeurders, goedkeurings-API en het gedrag bij
-afwijzing of timeout moeten nog worden ontworpen.
+The approver identity model, approval API, and behavior on rejection or timeout
+still need to be designed.
 
-## Geheimen en gegevens
+## Secrets and data
 
-- Geen secrets in source control; commit alleen niet-gevoelige
-  voorbeeldconfiguratie.
-- Geen credentials in prompts, agentinput, commandoregels of ongeredigeerde
+- Do not commit secrets to source control; commit only non-sensitive example
+  configuration.
+- Do not put credentials in prompts, agent input, command lines, or unredacted
   logs.
-- Gebruik voor lokale ontwikkeling een expliciet gekozen secretopslag en
-  documenteer installatie buiten versiebeheer.
-- Beperk welke ticket- en repositorygegevens naar modelaanroepen worden
-  verstuurd; bepaal dit per integratie en dataklasse.
-- Stel bewaartermijnen en verwijderprocedures vast voor ticketinhoud,
-  agenttranscripten en auditdata.
+- Choose an explicit secret store for local development and document setup
+  outside version control.
+- Restrict which ticket and repository data is sent to model calls; define this
+  per integration and data classification.
+- Define retention periods and deletion procedures for ticket content, agent
+  transcripts, and audit data.
 
-Secretopslag, dataclassificatie en retentie zijn nog niet geïmplementeerd of
-definitief gekozen.
+Secret storage, data classification, and retention have not yet been
+implemented or finalized.
 
-## Audit en incidentrespons
+## Audit and incident response
 
-Leg ten minste workflowtransities, policybeslissingen, goedkeuringen,
-agentstart/-einde, relevante toolacties en GitHub-acties vast. Logs horen
-correlatie-ID's te bevatten en gevoelige inhoud te vermijden of redigeren.
-Auditlogging moet storingen zichtbaar maken; kritieke acties mogen niet stilzwijgend
-doorgaan wanneer een vereiste auditregistratie mislukt.
+Record at least workflow transitions, policy decisions, approvals, agent
+start/end, relevant tool actions, and GitHub actions. Logs should contain
+correlation IDs and avoid or redact sensitive content. Audit logging failures
+must be visible; critical actions must not proceed silently if required audit
+recording fails.
 
-Voor gebruik buiten een lokale demo zijn daarnaast een incidentprocedure,
-credential-rotatie, herstel uit back-up en een procedure voor het stoppen of
-annuleren van actieve agentruns nodig.
+Before use beyond a local demo, also define an incident procedure, credential
+rotation, backup recovery, and a process for stopping or canceling active agent
+runs.
 
-## Minimale security-checklist vóór uitvoering
+## Minimum security checklist before execution
 
-- [ ] Webhook-authenticatie, inputvalidatie en idempotente verwerking.
-- [ ] Least-privilege GitHub-app/token met expliciete repository-scope.
-- [ ] Geen GitHub-token, Docker-socket of persoonlijke mounts in agentcontainers.
-- [ ] Docker-netwerk-, capability-, resource- en workspace-opruimbeleid.
-- [ ] Secrets veilig lokaal beheren en logredactie testen.
-- [ ] Policybeslissingen en goedkeuringen duurzaam en controleerbaar opslaan.
-- [ ] Tests voor geweigerde acties, prompt injection en falende audit/policy-opslag.
-- [ ] Annulering, timeout, retry en herstel van agentruns definiëren.
-
+- [ ] Webhook authentication, input validation, and idempotent processing.
+- [ ] Least-privilege GitHub app/token with explicit repository scope.
+- [ ] No GitHub token, Docker socket, or personal mounts in agent containers.
+- [ ] Docker network, capability, resource, and workspace cleanup policies.
+- [ ] Secure local secret management and tested log redaction.
+- [ ] Durable and auditable storage for policy decisions and approvals.
+- [ ] Tests for denied actions, prompt injection, and audit/policy storage failures.
+- [ ] Defined cancellation, timeout, retry, and agent-run recovery behavior.

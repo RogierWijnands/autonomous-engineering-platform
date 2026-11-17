@@ -1,121 +1,120 @@
-# Architectuur
+# Architecture
 
-## Doel en status
+## Purpose and status
 
-De Autonomous Engineering Platform (AEP) is bedoeld als lokale
-mini-enterpriseomgeving die werk vanuit een lokale Jira-simulator gecontroleerd
-door een reeks gespecialiseerde agents leidt, en uiteindelijk een GitHub-draft
-pull request kan opleveren.
+The Autonomous Engineering Platform (AEP) is intended to be a local
+mini-enterprise environment that takes work from a local Jira simulator through
+a controlled sequence of specialized agents and ultimately produces a GitHub
+draft pull request.
 
-Dit document beschrijft het beoogde ontwerp, niet reeds geïmplementeerd gedrag.
-De repository bevat momenteel een scaffold. Componenten, integraties,
-persistente workflows en beveiligingscontroles moeten nog worden gebouwd en
-getest.
+This document describes the intended design, not behavior that has already
+been implemented. The repository currently contains a scaffold. Components,
+integrations, persistent workflows, and security controls still need to be
+built and tested.
 
-## Ontwerpprincipes
+## Design principles
 
-- **Host beheert bevoegdheden:** credentials en externe acties blijven buiten
-  de agentcontainer.
-- **Minimale rechten:** iedere component krijgt alleen de toegang die nodig is
-  voor zijn taak.
-- **Persistente orkestratie:** workflowstatus, pogingen, goedkeuringen en
-  resultaten moeten herstelbaar zijn na een procesrestart.
-- **Expliciete gates:** risicovolle stappen vereisen beleidstoetsing en waar
-  nodig menselijke goedkeuring.
-- **Controleerbaarheid:** belangrijke beslissingen en acties worden aan een
-  workflow en actor gekoppeld vastgelegd.
-- **Lokale uitvoering:** Jira-simulator, MCP-server, AEP en PostgreSQL draaien
-  lokaal; modelaanroepen en GitHub-integratie vereisen internettoegang.
+- **The host controls privileges:** credentials and external actions remain
+  outside the agent container.
+- **Least privilege:** each component receives only the access it needs for
+  its task.
+- **Persistent orchestration:** workflow state, attempts, approvals, and
+  results must be recoverable after a process restart.
+- **Explicit gates:** high-risk steps require policy checks and, where needed,
+  human approval.
+- **Auditability:** important decisions and actions are recorded and linked to
+  a workflow and actor.
+- **Local execution:** the Jira simulator, MCP server, AEP, and PostgreSQL run
+  locally; model calls and the GitHub integration require internet access.
 
-## Componenten en verantwoordelijkheden
+## Components and responsibilities
 
-| Component | Verantwoordelijkheid |
+| Component | Responsibility |
 |---|---|
-| `Aep.Api` | ASP.NET Core HTTP-ingang voor webhooks en beheer- of statusaanvragen. Valideert verzoeken en geeft werk door aan application-use-cases. |
-| `Aep.Application` | Use-cases, workflowcoördinatie, policies en contracten tussen de domeinlaag en adapters. |
-| `Aep.Domain` | Workflowconcepten, toestanden, invarianten en domeinregels, onafhankelijk van externe integraties. |
-| `Aep.Infrastructure` | PostgreSQL-persistentie via EF Core/Npgsql en implementaties van externe of technische adapters. |
-| `Aep.AgentRunner` | Start en volgt agentruns met GitHub Copilot CLI binnen een geïsoleerde workspace. Krijgt geen GitHub-token of Docker-socket. |
-| `Aep.GitHub` | GitHub-bewerkingen namens de host, zoals branch-, commit- en draft-PR-acties. Beheert GitHub-credentials buiten de agentcontainer. |
-| `Aep.Worker` | Achtergrondverwerking van geaccepteerde workflows en herstelbare of opnieuw uitvoerbare taken. |
-| Jira-simulator | Lokale TypeScript-applicatie die tickets beheert en wijzigingen via MCP en een webhook aan de AEP kan aanbieden. |
-| PostgreSQL | Persistente workflowstatus, agentruns, goedkeuringen en auditgegevens. |
-| Docker-workspace | Afgebakende, tijdelijke werkomgeving voor agents en hun repositorycheckout. |
+| `Aep.Api` | ASP.NET Core HTTP entry point for webhooks and management or status requests. Validates requests and passes work to application use cases. |
+| `Aep.Application` | Use cases, workflow coordination, policies, and contracts between the domain layer and adapters. |
+| `Aep.Domain` | Workflow concepts, states, invariants, and business rules, independent of external integrations. |
+| `Aep.Infrastructure` | PostgreSQL persistence through EF Core/Npgsql and implementations of external or technical adapters. |
+| `Aep.AgentRunner` | Starts and monitors agent runs with GitHub Copilot CLI inside an isolated workspace. It receives no GitHub token or Docker socket. |
+| `Aep.GitHub` | GitHub operations on behalf of the host, such as branch, commit, and draft PR actions. Manages GitHub credentials outside the agent container. |
+| `Aep.Worker` | Background processing of accepted workflows and recoverable or retryable tasks. |
+| Jira simulator | Local TypeScript application that manages tickets and can submit changes to the AEP via MCP and a webhook. |
+| PostgreSQL | Persistent workflow state, agent runs, approvals, and audit data. |
+| Docker workspace | Bounded, temporary working environment for agents and their repository checkout. |
 
-De grenzen zijn logisch; de uiteindelijke procesindeling en hostingconfiguratie
-worden tijdens implementatie vastgesteld.
+These are logical boundaries; the final process layout and hosting
+configuration will be determined during implementation.
 
-## Hoofdstromen
+## Main flows
 
-### Ticket naar workflow
+### Ticket to workflow
 
-1. Een gebruiker maakt een ticket aan in de lokale Jira-simulator en zet het op
+1. A user creates a ticket in the local Jira simulator and moves it to
    **In Progress**.
-2. De simulator verstuurt een webhook naar de AEP API. De API valideert de
-   aanvraag en registreert of plant de workflow.
-3. De worker laadt de workflow en voert policy- en risicocontroles uit.
-4. De agentpipeline werkt in een geïsoleerde Docker-workspace.
-5. De host verwerkt toegestane GitHub-acties en maakt een feature branch en
-   draft PR aan.
-6. Een mens beoordeelt de PR en beslist over samenvoegen of verdere actie.
+2. The simulator sends a webhook to the AEP API. The API validates the request
+   and records or schedules the workflow.
+3. The worker loads the workflow and performs policy and risk checks.
+4. The agent pipeline works in an isolated Docker workspace.
+5. The host processes permitted GitHub actions and creates a feature branch and
+   draft PR.
+6. A person reviews the PR and decides whether to merge or take further action.
 
-De exacte webhook-authenticatie, retry-strategie, idempotentiesleutel en
-transities moeten vóór implementatie worden vastgelegd. Dubbele webhooklevering
-mag niet leiden tot ongecontroleerde dubbele workflows.
+The exact webhook authentication, retry strategy, idempotency key, and
+transitions must be defined before implementation. Duplicate webhook delivery
+must not result in uncontrolled duplicate workflows.
 
-### Agentpipeline
+### Agent pipeline
 
-De standaardrollen zijn:
+The default roles are:
 
-1. **Analyst** — verduidelijkt het verzoek en stelt acceptatiecriteria op.
-2. **Architect** — vertaalt die criteria naar een ontwerp of beperkte aanpak.
-3. **Implementer** — voert de goedgekeurde wijziging uit.
-4. **Tester** — controleert gedrag met gerichte tests.
-5. **Reviewer** — beoordeelt de wijziging onafhankelijk op fouten en
-   regressies.
+1. **Analyst** — clarifies the request and defines acceptance criteria.
+2. **Architect** — translates those criteria into a design or bounded approach.
+3. **Implementer** — implements the approved change.
+4. **Tester** — verifies behavior with focused tests.
+5. **Reviewer** — independently reviews the change for defects and regressions.
 
-Iedere agent ontvangt alleen de context en tools die nodig zijn voor zijn rol.
-De uitvoer van een stap wordt als workflowresultaat vastgelegd en door de
-orchestrator gecontroleerd voordat de volgende stap begint. De concrete
-agentprotocollen en uitvoerformaten moeten nog worden gedefinieerd.
+Each agent receives only the context and tools required for its role. The
+orchestrator records each step's output as a workflow result and checks it
+before the next step begins. The concrete agent protocols and output formats
+still need to be defined.
 
-## Persistente workflow
+## Persistent workflow
 
-De workflow-engine wordt een eigen persisted state machine. De database is de
-bron van waarheid voor de workflowstatus; het geheugen van een agent of worker
-is dat niet. Een workflow moet minimaal kunnen verwijzen naar:
+The workflow engine will be a custom persisted state machine. The database is
+the source of truth for workflow state; an agent's or worker's in-memory state
+is not. A workflow must be able to reference at least:
 
-- de externe ticketidentiteit en ontvangen event;
-- de huidige toestand en voortgang van stappen;
-- agentruns, resultaten en pogingen;
-- risico-inschatting, policybeslissingen en goedkeuringsstatus;
-- workspace- en GitHub-resultaten;
-- auditgebeurtenissen en relevante timestamps.
+- the external ticket identity and received event;
+- the current state and step progress;
+- agent runs, results, and attempts;
+- risk assessment, policy decisions, and approval status;
+- workspace and GitHub results;
+- audit events and relevant timestamps.
 
-Dit is een conceptueel minimum, geen vastgelegd databaseschema. Transactiegrenzen,
-concurrency control, retentie en herstelgedrag moeten bij de implementatie
-worden ontworpen.
+This is a conceptual minimum, not a finalized database schema. Transaction
+boundaries, concurrency control, retention, and recovery behavior must be
+designed during implementation.
 
-## Repository-indeling
+## Repository layout
 
-- `src/Aep.Api/`, `src/Aep.Application/`, `src/Aep.Domain/` en
-  `src/Aep.Infrastructure/` vormen de kern van de .NET-applicatie.
-- `src/Aep.AgentRunner/`, `src/Aep.GitHub/` en `src/Aep.Worker/` bevatten
-  uitvoerings-, integratie- en achtergrondcomponenten.
-- `mcp/jira-simulator/` bevat de lokale TypeScript Jira-simulator en MCP-server.
-- `agents/` bevat rolbeschrijvingen voor de agentpipeline.
-- `policies/` bevat initiële policyconfiguraties; deze zijn pas effectief als
-  de runtime ze afdwingt.
-- `infrastructure/` bevat de geplande Docker-configuratie.
-- `tests/` bevat de geplande unit- en integratietests.
+- `src/Aep.Api/`, `src/Aep.Application/`, `src/Aep.Domain/`, and
+  `src/Aep.Infrastructure/` form the .NET application core.
+- `src/Aep.AgentRunner/`, `src/Aep.GitHub/`, and `src/Aep.Worker/` contain
+  execution, integration, and background-processing components.
+- `mcp/jira-simulator/` contains the local TypeScript Jira simulator and MCP
+  server.
+- `agents/` contains role descriptions for the agent pipeline.
+- `policies/` contains initial policy configurations; they only take effect
+  when enforced by the runtime.
+- `infrastructure/` contains the planned Docker configuration.
+- `tests/` contains the planned unit and integration tests.
 
-## Nog te beslissen
+## Open decisions
 
-- Exacte .NET-projectreferenties, solution-indeling en API-contracten.
-- Webhook-authenticatie, deduplicatie en retry-/dead-lettergedrag.
-- Workflowstatussen, herstelstrategie, time-outs en annulering.
-- Datamodel, migraties, auditretentie en back-upstrategie.
-- Docker-netwerkbeleid, resource-limieten en workspace-opruiming.
-- GitHub-tokenbeheer, toegestane repositories en branch-/PR-conventies.
-- Agent-outputcontracten, model-/CLI-versies en observability.
-
+- Exact .NET project references, solution layout, and API contracts.
+- Webhook authentication, deduplication, and retry/dead-letter behavior.
+- Workflow states, recovery strategy, timeouts, and cancellation.
+- Data model, migrations, audit retention, and backup strategy.
+- Docker network policy, resource limits, and workspace cleanup.
+- GitHub token management, allowed repositories, and branch/PR conventions.
+- Agent output contracts, model/CLI versions, and observability.

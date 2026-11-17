@@ -1,114 +1,109 @@
-# Workflow en agentpipeline
+# Workflow and Agent Pipeline
 
 ## Status
 
-Dit document beschrijft de beoogde end-to-end-flow. Het is geen beschrijving
-van een reeds werkende workflow: de API, state machine, database, MCP-server,
-container en GitHub-integratie moeten nog worden geïmplementeerd.
+This document describes the intended end-to-end flow. It does not describe an
+already working workflow: the API, state machine, database, MCP server,
+container, and GitHub integration still need to be implemented.
 
-## Overzicht
+## Overview
 
 ```text
-Ticket aangemaakt en In Progress
+Ticket created and moved to In Progress
         ↓ webhook
-Ontvangst, validatie en deduplicatie
+Receive, validate, and deduplicate
         ↓
-Policy- en risico-evaluatie
-        ↓ indien vereist
-Menselijke goedkeuring
+Policy and risk evaluation
+        ↓ if required
+Human approval
         ↓
 Analyst → Architect → Implementer → Tester → Reviewer
         ↓
-Resultaat- en policycontrole
-        ↓ host-side GitHub-acties
-Feature branch → draft PR → menselijke review
+Result and policy checks
+        ↓ host-side GitHub actions
+Feature branch → draft PR → human review
 ```
 
-## Fasen
+## Phases
 
-### 1. Ticket ontvangen
+### 1. Receive ticket
 
-De Jira-simulator beheert lokale tickets en biedt ze via MCP aan. Bij een
-relevante statusovergang verstuurt de simulator een webhook naar de AEP API.
-De API hoort de afzender te authenticeren, de payload te valideren en een
-duurzame workflowregistratie te maken. Herlevering van dezelfde event hoort
-geen onbedoelde tweede uitvoering te veroorzaken.
+The Jira simulator manages local tickets and exposes them through MCP. When a
+relevant status transition occurs, the simulator sends a webhook to the AEP
+API. The API should authenticate the sender, validate the payload, and create
+a durable workflow record. Redelivery of the same event should not cause an
+unintended duplicate execution.
 
-### 2. Scope en policy vaststellen
+### 2. Establish scope and policy
 
-De orchestrator koppelt het ticket aan de geconfigureerde GitHub-repository,
-controleert scope en bepaalt het risiconiveau. De policy-engine beslist welke
-acties en goedkeuringen nodig zijn. Ticket- of repositorytekst kan de policy
-niet aanpassen.
+The orchestrator associates the ticket with the configured GitHub repository,
+checks scope, and determines the risk level. The policy engine decides which
+actions and approvals are required. Ticket or repository text cannot change
+the policy.
 
-Als scope, risico of vereiste invoer niet betrouwbaar kan worden vastgesteld,
-wordt de workflow gepauzeerd voor menselijke beoordeling in plaats van
-stilzwijgend door te gaan.
+If scope, risk, or required input cannot be determined reliably, the workflow
+is paused for human review rather than proceeding silently.
 
-### 3. Goedkeuring vóór uitvoering
+### 3. Approval before execution
 
-Een workflow die volgens policy goedkeuring nodig heeft, blijft geblokkeerd
-totdat een bevoegde gebruiker de concrete taak en scope goedkeurt. De
-goedkeuring wordt aan die workflow en inhoud gebonden; wezenlijke wijzigingen
-vereisen herbeoordeling. Afwijzing en timeout stoppen of pauzeren de workflow
-volgens expliciete regels.
+A workflow that requires approval under policy remains blocked until an
+authorized user approves the specific task and scope. The approval is bound to
+that workflow and content; material changes require another review. Rejection
+and timeout stop or pause the workflow according to explicit rules.
 
-### 4. Agentuitvoering
+### 4. Agent execution
 
-De host maakt een afgebakende Docker-workspace voor de taak aan. Agents
-doorlopen de analyst-, architect-, implementer-, tester- en reviewerrollen.
-Agentinstructies staan onder `agents/`; runtime-invoer en uitvoerformaten
-moeten nog worden vastgelegd.
+The host creates a bounded Docker workspace for the task. Agents perform the
+analyst, architect, implementer, tester, and reviewer roles. Agent instructions
+are in `agents/`; runtime inputs and output formats still need to be defined.
 
-De agentcontainer krijgt geen GitHub-token, Docker-socket of toegang tot
-persoonlijke bestanden. Elke stap hoort een begrensde taak, time-out en
-resourcebudget te hebben. De orchestrator registreert status en resultaten
-zodat een procesrestart de workflow niet afhankelijk maakt van vluchtig
-agentgeheugen.
+The agent container receives no GitHub token, Docker socket, or access to
+personal files. Each step should have a bounded task, timeout, and resource
+budget. The orchestrator records status and results so a process restart does
+not make the workflow depend on volatile agent memory.
 
-### 5. Kwaliteits- en policycontrole
+### 5. Quality and policy checks
 
-Tests worden uitgevoerd in de geïsoleerde omgeving. De reviewer levert
-bevindingen en de orchestrator controleert of alle vereiste stappen zijn
-afgerond en er geen policyblokkade openstaat. Een mislukte test of kritieke
-bevinding leidt niet automatisch tot een PR alsof de taak geslaagd is.
+Tests run in the isolated environment. The reviewer reports findings, and the
+orchestrator checks that all required steps are complete and no policy block
+remains. A failed test or critical finding must not automatically result in a
+PR presented as successful.
 
-### 6. GitHub-publicatie en menselijke review
+### 6. GitHub publication and human review
 
-De .NET-host voert toegestane GitHub-acties uit met beperkte credentials:
-feature branch, commits en draft PR. De agentcontainer voert deze acties niet
-zelf uit. De PR verwijst naar het oorspronkelijke ticket en bevat een
-samenvatting, testresultaten en relevante risico's.
+The .NET host performs permitted GitHub actions using limited credentials:
+creating a feature branch, commits, and a draft PR. The agent container does
+not perform these actions itself. The PR references the original ticket and
+includes a summary, test results, and relevant risks.
 
-Een mens beoordeelt de draft PR. Het aanmaken van een draft PR is niet hetzelfde
-als goedkeuring voor samenvoegen of deployen; die handelingen blijven buiten
-deze initiële scope tenzij later expliciet ontworpen.
+A person reviews the draft PR. Creating a draft PR is not approval to merge or
+deploy; those actions are outside the initial scope unless explicitly designed
+later.
 
-### 7. Afronding en opruimen
+### 7. Completion and cleanup
 
-De host legt eindstatus en auditinformatie vast. Tijdelijke workspaces en
-artefacten worden volgens een vast te stellen retentiebeleid verwijderd.
-Mislukte of geannuleerde taken moeten veilig kunnen worden gestopt en hun
-gedeeltelijke resultaten herkenbaar houden.
+The host records the final status and audit information. Temporary workspaces
+and artifacts are removed according to a retention policy that still needs to
+be defined. Failed or canceled tasks must be stopped safely, with partial
+results remaining identifiable.
 
-## Workflowvereisten
+## Workflow requirements
 
-- Statusovergangen zijn expliciet en worden door de orchestrator gevalideerd.
-- Webhook-, worker- en agentherhalingen zijn idempotent waar mogelijk.
-- Elke stap heeft vastgelegde input, output, start/eindtijd en resultaatstatus.
-- Goedkeuringen zijn herleidbaar naar de scope en wijzigingsset.
-- Fouten, time-outs en annulering zijn zichtbaar; een fout wordt niet als
-  succes gepresenteerd.
-- Een workflow kan worden gepauzeerd, hervat of geannuleerd zonder policychecks
-  te omzeilen.
+- State transitions are explicit and validated by the orchestrator.
+- Webhook, worker, and agent retries are idempotent where possible.
+- Each step records its input, output, start/end time, and result status.
+- Approvals are traceable to the scope and change set.
+- Errors, timeouts, and cancellations are visible; failures are not presented
+  as successes.
+- A workflow can be paused, resumed, or canceled without bypassing policy
+  checks.
 
-## Nog te bepalen
+## Open decisions
 
-- Exacte statusnamen en toegestane transities.
-- Criteria voor een geldige Jira-statusovergang en eventdeduplicatie.
-- Goedkeuringsinterface, bevoegdheden en verlopen goedkeuringen.
-- Agentcontracten, contextselectie en toegestane CLI-commando's.
-- Herhaalbaarheid per fase en behandeling van gedeeltelijke resultaten.
-- Test-/reviewdrempels die een draft PR blokkeren.
-- Workspace-, log- en transcriptretentie.
-
+- Exact state names and allowed transitions.
+- Criteria for a valid Jira status transition and event deduplication.
+- Approval interface, permissions, and expiration behavior.
+- Agent contracts, context selection, and allowed CLI commands.
+- Retry behavior per phase and handling of partial results.
+- Test/review thresholds that block a draft PR.
+- Workspace, log, and transcript retention.

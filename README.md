@@ -1,91 +1,90 @@
 # Autonomous Engineering Platform
 
-Een lokale mini-enterprise engineeringomgeving waarin AI-agents zelfstandig
-engineeringwerk kunnen uitvoeren binnen expliciete grenzen. Het platform
-coördineert de volledige workflow van een Jira-ticket tot een draft pull request,
-met aandacht voor policies, security, auditability en menselijke goedkeuring.
+A local mini-enterprise engineering environment where AI agents can perform
+engineering work autonomously within explicit boundaries. The platform
+coordinates the complete workflow from a Jira ticket to a draft pull request,
+with a focus on policies, security, auditability, and human approval.
 
-## Doel
+## Purpose
 
-Dit project demonstreert niet alleen AI-codegeneratie, maar ook hoe je
-agent-workflows gecontroleerd kunt uitvoeren. Agents krijgen alleen de rechten
-die nodig zijn voor hun taak. Risicovolle acties en wijzigingen die daar om
-vragen worden door mensen beoordeeld en goedgekeurd.
+This project demonstrates not only AI code generation, but also how to run agent
+workflows in a controlled way. Agents receive only the permissions needed for
+their tasks. People review and approve risky actions and changes that require
+approval.
 
-## Architectuur
+## Architecture
 
 ```text
-Lokale Jira-simulator
+Local Jira simulator
         │ ticket / webhook
         ▼
 .NET AEP Orchestrator ───── PostgreSQL
-        │                    workflowstatus,
-        │                    agentruns, auditlogs
-        ├── Policy Engine
+        │                    workflow state,
+        │                    agent runs, audit logs
+        ├── Policy engine
         ├── Human approvals
-        ├── Agent Pipeline
+        ├── Agent pipeline
         │   Analyst → Architect → Implementer → Tester → Reviewer
-        │   GitHub Copilot CLI, gespecialiseerde agentdefinities
+        │   GitHub Copilot CLI, specialized agent definitions
         │
-        ├── Geïsoleerde Docker-workspace
+        ├── Isolated Docker workspace
         │
-        └── GitHub-integratie ── feature branch → draft PR → menselijke review
+        └── GitHub integration ── feature branch → draft PR → human review
 ```
 
-De Jira-simulator en MCP-server draaien lokaal. Ook de AEP draait lokaal.
-Alleen modelaanroepen en de GitHub-integratie hebben internettoegang nodig.
+The Jira simulator and MCP server run locally. The AEP also runs locally.
+Only model calls and the GitHub integration require internet access.
 
-## Veiligheidsgrenzen
+## Security boundaries
 
-- De agentcontainer krijgt geen GitHub-token, Docker-socket of toegang tot
-  persoonlijke bestanden.
-- De .NET-host beheert GitHub-acties buiten de agentcontainer.
-- Agentrechten, policies en goedkeuringsmomenten worden expliciet begrensd.
-- Workflowstatus en agentacties zijn persistent en controleerbaar.
+- The agent container receives no GitHub token, Docker socket, or access to
+  personal files.
+- The .NET host manages GitHub actions outside the agent container.
+- Agent permissions, policies, and approval gates are explicitly constrained.
+- Workflow state and agent actions are persistent and auditable.
 
-## Technologiestack
+## Technology stack
 
-| Onderdeel | Technologie |
+| Component | Technology |
 |---|---|
 | Orchestrator | .NET 10 LTS |
 | API | ASP.NET Core |
-| Workflow engine | Eigen persisted state machine |
+| Workflow engine | Custom persisted state machine |
 | Database | PostgreSQL 17 |
 | ORM | EF Core + Npgsql |
 | Agent runtime | GitHub Copilot CLI |
-| MCP-server | TypeScript + officiële MCP SDK |
-| Jira-simulator | Node.js + TypeScript |
-| Agent-isolatie | Docker |
+| MCP server | TypeScript + official MCP SDK |
+| Jira simulator | Node.js + TypeScript |
+| Agent isolation | Docker |
 | Source control | GitHub |
 | Logging | Serilog |
 | Tests | xUnit |
 
 ## Workflow
 
-1. Een ticket wordt in de lokale Jira-simulator aangemaakt en naar **In
-   Progress** verplaatst.
-2. De simulator meldt het ticket via een webhook aan de AEP Orchestrator.
-3. De orchestrator controleert policies, risico's en vereiste goedkeuringen.
-4. Gespecialiseerde agents analyseren, ontwerpen, implementeren, testen en
-   reviewen het werk in een geïsoleerde Docker-workspace.
-5. De .NET-host beheert de GitHub-integratie en maakt een feature branch en
-   draft PR aan.
-6. Een mens beoordeelt en keurt de PR goed voordat wijzigingen verdergaan.
+1. A ticket is created in the local Jira simulator and moved to **In Progress**.
+2. The simulator sends the ticket to the AEP Orchestrator via a webhook.
+3. The orchestrator checks policies, risk, and required approvals.
+4. Specialized agents analyze, design, implement, test, and review the work in
+   an isolated Docker workspace.
+5. The .NET host manages the GitHub integration and creates a feature branch
+   and draft PR.
+6. A person reviews and approves the PR before changes proceed.
 
-## Repositorystructuur
+## Repository structure
 
-- `src/` — .NET-componenten voor API, applicatie, domein, infrastructuur,
-  agent-runner, GitHub-integratie en worker.
-- `mcp/jira-simulator/` — lokale Jira-simulator en MCP-server.
-- `agents/` — rolbeschrijvingen voor de agentpipeline.
-- `policies/` — standaard-, beveiligings- en risicobeleid.
-- `infrastructure/` — Docker-infrastructuur.
-- `tests/` — unit- en integratietests.
-- `docs/` — architectuur, workflow en beveiligingsmodel.
-- `.github/` — GitHub-agent- en workflowconfiguratie.
+- `src/` — .NET components for the API, application, domain, infrastructure,
+  agent runner, GitHub integration, and worker.
+- `mcp/jira-simulator/` — local Jira simulator and MCP server.
+- `agents/` — role descriptions for the agent pipeline.
+- `policies/` — default, security, and risk policies.
+- `infrastructure/` — Docker infrastructure.
+- `tests/` — unit and integration tests.
+- `docs/` — architecture, workflow, and security model.
+- `.github/` — GitHub agent and workflow configuration.
 
 ## Status
 
-De repository bevat momenteel de initiële mappenstructuur en basisdocumentatie.
-De .NET-projecten, database, MCP-server en uitvoerbare workflows moeten nog
-worden geïmplementeerd.
+The repository currently contains the initial directory structure and baseline
+documentation. The .NET projects, database, MCP server, and executable
+workflows still need to be implemented.
