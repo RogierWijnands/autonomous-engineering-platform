@@ -7,10 +7,11 @@ mini-enterprise environment that takes work from a local Jira simulator through
 a controlled sequence of specialized agents and ultimately produces a GitHub
 draft pull request.
 
-This document describes the intended design, not behavior that has already
-been implemented. The repository currently contains a scaffold. Components,
-integrations, persistent workflows, and security controls still need to be
-built and tested.
+This document describes the intended design and the current implementation.
+One .NET web project contains the HTTP entry point, initial workflow model,
+PostgreSQL persistence, and schema migration. The ticket-processing flow,
+integrations, and most runtime security controls still need to be built and
+tested.
 
 ## Design principles
 
@@ -31,19 +32,15 @@ built and tested.
 
 | Component | Responsibility |
 |---|---|
-| `Aep.Api` | ASP.NET Core HTTP entry point for webhooks and management or status requests. Validates requests and passes work to application use cases. |
-| `Aep.Application` | Use cases, workflow coordination, policies, and contracts between the domain layer and adapters. |
-| `Aep.Domain` | Workflow concepts, states, invariants, and business rules, independent of external integrations. |
-| `Aep.Infrastructure` | PostgreSQL persistence through EF Core/Npgsql and implementations of external or technical adapters. |
-| `Aep.AgentRunner` | Starts and monitors agent runs with GitHub Copilot CLI inside an isolated workspace. It receives no GitHub token or Docker socket. |
-| `Aep.GitHub` | GitHub operations on behalf of the host, such as branch, commit, and draft PR actions. Manages GitHub credentials outside the agent container. |
-| `Aep.Worker` | Background processing of accepted workflows and recoverable or retryable tasks. |
+| `Aep` | One ASP.NET Core project. Its folders separate HTTP controllers, models, services, background services, database access, and integrations. |
 | Jira simulator | Local TypeScript application that manages tickets and can submit changes to the AEP via MCP and a webhook. |
 | PostgreSQL | Persistent workflow state, agent runs, approvals, and audit data. |
 | Docker workspace | Bounded, temporary working environment for agents and their repository checkout. |
 
-These are logical boundaries; the final process layout and hosting
-configuration will be determined during implementation.
+The folder boundaries are logical, not separate assemblies. Agent execution,
+GitHub integration, and background processing will initially live inside this
+project; a component can become a separate project if it later needs independent
+deployment, scaling, or compile-time dependency boundaries.
 
 ## Main flows
 
@@ -93,14 +90,17 @@ is not. A workflow must be able to reference at least:
 
 This is a conceptual minimum, not a finalized database schema. Transaction
 boundaries, concurrency control, retention, and recovery behavior must be
-designed during implementation.
+designed during implementation. The current EF Core model is versioned through
+migrations, which the application applies before accepting requests.
 
 ## Repository layout
 
-- `src/Aep.Api/`, `src/Aep.Application/`, `src/Aep.Domain/`, and
-  `src/Aep.Infrastructure/` form the .NET application core.
-- `src/Aep.AgentRunner/`, `src/Aep.GitHub/`, and `src/Aep.Worker/` contain
-  execution, integration, and background-processing components.
+- `src/Aep/` is the single .NET web project. Its folders are organized by
+  responsibility: `Controllers/`, `Models/`, `Services/`, `BackgroundServices/`,
+  `Database/`, and `Integrations/`.
+- `src/Aep/Aep.sln` is the entry point for building the application and test
+  projects.
+- `dotnet-tools.json` pins the local EF Core command-line tool.
 - `mcp/jira-simulator/` contains the local TypeScript Jira simulator and MCP
   server.
 - `agents/` contains role descriptions for the agent pipeline.
@@ -111,10 +111,10 @@ designed during implementation.
 
 ## Open decisions
 
-- Exact .NET project references, solution layout, and API contracts.
+- API contracts.
 - Webhook authentication, deduplication, and retry/dead-letter behavior.
 - Workflow states, recovery strategy, timeouts, and cancellation.
-- Data model, migrations, audit retention, and backup strategy.
+- Audit retention and backup strategy.
 - Docker network policy, resource limits, and workspace cleanup.
 - GitHub token management, allowed repositories, and branch/PR conventions.
 - Agent output contracts, model/CLI versions, and observability.
