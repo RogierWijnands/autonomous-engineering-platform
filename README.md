@@ -77,6 +77,8 @@ Only model calls and the GitHub integration require internet access.
   agent runner, GitHub integration, and worker.
 - `mcp/jira-simulator/` — local Jira simulator and MCP server.
 - `agents/` — role descriptions for the agent pipeline.
+- `.github/agents/Engineering Workflow` — the selectable VS Code workspace
+  agent that chooses the relevant role description from `agents/`.
 - `policies/` — default, security, and risk policies.
 - `infrastructure/` — Docker infrastructure.
 - `tests/` — unit and integration tests.
