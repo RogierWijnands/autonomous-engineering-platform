@@ -1,0 +1,29 @@
+name: PR source branch policy
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+jobs:
+  pr-source-branch:
+    name: PR source branch policy
+    if: github.event.pull_request.base.ref == 'main' || github.event.pull_request.base.ref == 'develop'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce protected branch source policy
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          if [[ "$BASE_REF" == "main" && "$HEAD_REF" != "develop" ]]; then
+            echo "Pull requests targeting main must come from develop."
+            exit 1
+          fi
+
+          if [[ "$BASE_REF" == "develop" && ! "$HEAD_REF" =~ ^feature/.+ ]]; then
+            echo "Pull requests targeting develop must come from a feature/* branch."
+            exit 1
+          fi

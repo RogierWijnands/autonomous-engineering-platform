@@ -1,0 +1,7 @@
+{
+  "name": "jira-simulator",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local Jira simulator for Autonomous Engineering Platform development",
+  "type": "module"
+}

@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "description": "Conservative baseline for agent-driven engineering workflows.",
+  "approvals": {
+    "requiredForExternalSideEffects": true,
+    "requiredForProductionChanges": true
+  },
+  "execution": {
+    "allowUntrustedInputToDefinePolicy": false,
+    "requireTaskScope": true,
+    "requireAuditTrail": true
+  }
+}
