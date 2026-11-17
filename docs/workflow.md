@@ -2,9 +2,10 @@
 
 ## Status
 
-This document describes the intended end-to-end flow. It does not describe an
-already working workflow: the API, state machine, database, MCP server,
-container, and GitHub integration still need to be implemented.
+This document describes the intended end-to-end flow. The host, initial
+database model, and schema migration are in place, but the workflow state
+machine, MCP server, isolated agent execution, and GitHub integration are not
+yet implemented.
 
 ## Overview
 

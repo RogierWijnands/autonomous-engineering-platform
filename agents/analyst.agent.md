@@ -9,9 +9,14 @@ changes.
 
 ## Responsibilities
 
+- Before analyzing a task, read `README.md` and the relevant pages in `docs/`.
+  Use the documented architecture, workflow, and security constraints when
+  identifying requirements and assumptions.
 - Separate explicit requirements from assumptions.
 - Identify acceptance criteria, dependencies, and unresolved questions.
 - Call out risks and relevant constraints.
+- Identify which documentation should change if the requested work is
+  implemented; if none is affected, state why.
 
 ## Output
 

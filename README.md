@@ -73,8 +73,10 @@ Only model calls and the GitHub integration require internet access.
 
 ## Repository structure
 
-- `src/` — .NET components for the API, application, domain, infrastructure,
-  agent runner, GitHub integration, and worker.
+- `src/Aep/` — one .NET web project, organized into `Controllers/`, `Models/`,
+  `Services/`, `BackgroundServices/`, `Database/`, and
+  `Integrations/`.
+- `src/Aep/Aep.sln` — solution for the .NET application and its tests.
 - `mcp/jira-simulator/` — local Jira simulator and MCP server.
 - `agents/` — role descriptions for the agent pipeline.
 - `.github/agents/Orchestrator` — the selectable VS Code workspace
@@ -85,6 +87,34 @@ Only model calls and the GitHub integration require internet access.
 - `docs/` — architecture, workflow, and security model.
 - `docs/contributing.md` — commit message and branch contribution rules.
 - `.github/` — GitHub agent and workflow configuration.
+
+## Local database
+
+Copy `infrastructure/.env.example` to `infrastructure/.env` and set a unique
+`POSTGRES_PASSWORD`. The local `.env` file is ignored by Git. Start PostgreSQL
+from the repository root with `npm run db:up`; use `npm run db:logs` to follow
+its logs and `npm run db:down` to stop it. PostgreSQL listens only on
+`127.0.0.1:5432`.
+
+The EF Core model is in `src/Aep/Models/`; its PostgreSQL context and migrations
+are in `src/Aep/Database/`. Agent prompts, outputs, and tool results belong in
+an artifact store; the database model keeps bounded metadata, hashes, statuses,
+and artifact references instead. Audit events are append-only through the EF
+Core context.
+
+Set the `ConnectionStrings__Aep` environment variable to a PostgreSQL
+connection string, then run `npm start` to start PostgreSQL and the AEP
+application. The app applies checked-in EF Core migrations before accepting
+requests. `npm run startup` starts only the application, and
+`npm run db:migrate` applies migrations explicitly. Create future migrations
+with:
+
+```sh
+dotnet ef migrations add <MigrationName> --project src/Aep/Aep.csproj --startup-project src/Aep/Aep.csproj
+```
+
+Build the .NET solution from the repository root with
+`dotnet build src/Aep/Aep.sln`.
 
 ## Commit conventions
 
@@ -116,6 +146,6 @@ present in `develop`. See [Contributing](docs/contributing.md) for details. Use
 
 ## Status
 
-The repository currently contains the initial directory structure and baseline
-documentation. The .NET projects, database, MCP server, and executable
-workflows still need to be implemented.
+The repository contains one .NET web project, workflow models, PostgreSQL
+persistence, and an initial schema migration. The Jira simulator, MCP server,
+and complete ticket-to-pull-request workflow are still under development.

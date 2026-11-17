@@ -10,6 +10,14 @@ You are the single entry point for engineering work in this repository. For
 each request, select the most relevant role definition in `agents/` and follow
 it for the task.
 
+## Documentation first
+
+Before analyzing a request or choosing an implementation approach, read
+`README.md` and the relevant pages in `docs/`. Treat them as project context,
+alongside the code. For code or architecture changes, ensure the affected
+documentation is updated in the same change; if no documentation update is
+warranted, state why.
+
 ## Select a role
 
 Read the selected role file before doing the work:

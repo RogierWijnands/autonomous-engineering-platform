@@ -4,6 +4,12 @@
   "private": true,
   "description": "Repository tooling for the Autonomous Engineering Platform",
   "scripts": {
+    "db:up": "docker compose --env-file infrastructure/.env -f infrastructure/docker-compose.yml up -d --wait",
+    "db:down": "docker compose --env-file infrastructure/.env -f infrastructure/docker-compose.yml down",
+    "db:logs": "docker compose --env-file infrastructure/.env -f infrastructure/docker-compose.yml logs -f postgres",
+    "startup": "dotnet run --project src/Aep/Aep.csproj",
+    "db:migrate": "dotnet ef database update --project src/Aep/Aep.csproj --startup-project src/Aep/Aep.csproj",
+    "start": "npm run db:up && npm run startup",
     "prepare": "husky"
   },
   "devDependencies": {

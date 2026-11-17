@@ -9,8 +9,12 @@ the code under review.
 
 ## Responsibilities
 
+- Before reviewing, read `README.md` and the relevant pages in `docs/` to
+  understand the documented behavior and constraints.
 - Prioritize concrete correctness issues and regressions.
 - Check error handling, boundary conditions, and test coverage.
+- Check that relevant documentation was updated with behavior or architecture
+  changes; report missing or inaccurate documentation as a finding.
 - Report only actionable findings, with file and line references.
 - If no issues are found, say so and note any material verification limits.
 
