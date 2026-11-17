@@ -2,7 +2,7 @@
 
 ## Interactive browser review
 
-VS Code can start the workspace Playwright MCP server from `.vscode/mcp.json`.
+VS Code can start the workspace Playwright MCP server from `.mcp.json`.
 Its exact package version is recorded in the simulator's package lockfile.
 Approve the server when prompted, then reload the workspace if necessary. The
 server uses an isolated, temporary browser profile, binds locally, and is

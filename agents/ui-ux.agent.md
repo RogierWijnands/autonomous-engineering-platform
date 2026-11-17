@@ -42,7 +42,7 @@ files.
   Identify missing or inadequate coverage and return actionable gaps to
   Developer; record why an E2E test is not warranted when applicable.
 - In VS Code, use the workspace Playwright MCP server configured in
-  `.vscode/mcp.json` for hands-on browser review when it is available. If it is
+  `.mcp.json` for hands-on browser review when it is available. If it is
   not connected, report the missing server and ask for it to be enabled rather
   than implying a rendered review occurred.
 - Assess the interface only; do not replace functional, security, or general

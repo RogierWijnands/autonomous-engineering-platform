@@ -31,7 +31,7 @@ Verify behavior against the requirements using focused, repeatable tests.
   relationships, focus and reading order, hidden content, and live regions.
   Report the evidence and limitations; do not claim that DOM checks establish
   actual screen-reader behavior.
-- Use the workspace Playwright MCP server in `.vscode/mcp.json` for interactive
+- Use the workspace Playwright MCP server in `.mcp.json` for interactive
   browser verification when available, and run the project's Playwright
   browser tests for repeatable flows. If the MCP server is unavailable,
   report the precise blocker and ask the user to enable access.
