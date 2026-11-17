@@ -4,13 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var connectionString = builder.Configuration.GetConnectionString("Aep");
-if (string.IsNullOrWhiteSpace(connectionString))
-{
-    throw new InvalidOperationException(
-        "Set the ConnectionStrings__Aep environment variable before starting the AEP application.");
-}
-
+var connectionString = PostgresConnectionString.Get(builder.Configuration);
 builder.Services.AddAepDatabase(connectionString);
 builder.Services.AddScoped<DatabaseHealthService>();
 builder.Services.AddControllers();

@@ -6,7 +6,7 @@ services:
     environment:
       POSTGRES_DB: aep
       POSTGRES_USER: aep
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in infrastructure/.env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     ports:
       - "127.0.0.1:5432:5432"
     volumes:

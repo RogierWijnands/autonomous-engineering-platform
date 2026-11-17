@@ -26,6 +26,8 @@ docs: describe the local development workflow
 The local Commitlint hook is installed by running `npm install` from the
 repository root. The `conventional-commits.yml` GitHub Actions workflow checks
 commits on branch pushes, commits in pull requests, and pull request titles.
+Commit messages should include an implementation summary and the exact
+validation performed in the body.
 
 ## Branches and pull requests
 
@@ -51,3 +53,16 @@ commits on branch pushes, commits in pull requests, and pull request titles.
 
 Repository rulesets enforce these requirements. Do not rely on local hooks
 alone; hooks can be bypassed on a developer machine.
+
+## Creating a pull request
+
+In the VS Code Orchestrator chat, ask **"Maak een PR"** to run the standard
+workflow for the current open changes. The `/create-pr` prompt is also
+available. It reviews the changes, creates a descriptive branch, runs relevant
+validation, writes a Conventional Commit with implementation and validation
+details, pushes the branch, and opens a draft PR to `develop`.
+
+The workflow stages only reviewed, relevant files. It never includes `.env`
+files, secrets, or unrelated work. If the branch contains commits not already
+in `develop`, or the changes cannot safely be separated, it pauses for
+clarification rather than creating a misleading PR.
