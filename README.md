@@ -96,14 +96,14 @@ docs: describe the local development workflow
 ```
 
 The local `commit-msg` hook is installed when you run `npm install` from the
-repository root. GitHub Actions checks commits on every branch push, all
-commits in a pull request, and the pull request title. Repository rulesets
-require the **Conventional commits** status check on every branch.
+repository root. The **Conventional commits** GitHub Actions workflow checks
+commits on every branch push, all commits in a pull request, and the pull
+request title. Repository rulesets require that status check on every branch.
 
 Pull requests targeting `main` or `develop` must come from a branch named
 `feature/*`. Those branches require pull requests and the
-**PR source branch policy** check; direct updates and force pushes are blocked.
-Use **Settings → Rules → Rulesets** to review the active rulesets.
+**PR source branch policy** workflow check; direct updates and force pushes are
+blocked. Use **Settings → Rules → Rulesets** to review the active rulesets.
 
 ## Status
 
