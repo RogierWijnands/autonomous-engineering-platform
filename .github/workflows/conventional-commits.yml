@@ -48,17 +48,3 @@ jobs:
           else
             npx --no -- commitlint --from "$BEFORE_SHA" --to "$AFTER_SHA"
           fi
-
-  pr-source-branch:
-    name: PR source branch policy
-    if: github.event_name == 'pull_request' && (github.event.pull_request.base.ref == 'main' || github.event.pull_request.base.ref == 'develop')
-    runs-on: ubuntu-latest
-    steps:
-      - name: Require a feature branch source
-        env:
-          HEAD_REF: ${{ github.event.pull_request.head.ref }}
-        run: |
-          if [[ ! "$HEAD_REF" =~ ^feature/.+ ]]; then
-            echo "Pull requests targeting main or develop must come from a feature/* branch."
-            exit 1
-          fi

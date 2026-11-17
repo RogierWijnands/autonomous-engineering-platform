@@ -16,8 +16,8 @@ docs: describe the local development workflow
 ```
 
 The local Commitlint hook is installed by running `npm install` from the
-repository root. GitHub Actions checks commits on branch pushes, commits in
-pull requests, and pull request titles.
+repository root. The `conventional-commits.yml` GitHub Actions workflow checks
+commits on branch pushes, commits in pull requests, and pull request titles.
 
 ## Branches and pull requests
 
@@ -27,6 +27,8 @@ pull requests, and pull request titles.
 - Direct updates, force pushes, and branch deletion are blocked for `main` and
   `develop`.
 - Required status checks must pass before a pull request can be merged.
+- The `pr-source-branch-policy.yml` workflow enforces the `feature/*` source
+  branch naming rule for pull requests targeting `main` or `develop`.
 
 Repository rulesets enforce these requirements. Do not rely on local hooks
 alone; hooks can be bypassed on a developer machine.
