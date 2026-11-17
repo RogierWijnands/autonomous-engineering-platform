@@ -83,6 +83,23 @@ Only model calls and the GitHub integration require internet access.
 - `docs/` — architecture, workflow, and security model.
 - `.github/` — GitHub agent and workflow configuration.
 
+## Commit conventions
+
+Commit messages and pull request titles must follow
+[Conventional Commits](https://www.conventionalcommits.org/), using the
+Conventional Commits types configured by Commitlint. For example:
+
+```text
+feat(api): accept Jira webhook events
+docs: describe the local development workflow
+```
+
+The local `commit-msg` hook is installed when you run `npm install` from the
+repository root. GitHub Actions also checks every commit in a pull request and
+the pull request title. To enforce the check on GitHub, configure a branch
+protection rule or repository ruleset for the target branch that requires the
+**Conventional commits** status check and disallows bypassing the rule.
+
 ## Status
 
 The repository currently contains the initial directory structure and baseline
