@@ -2,7 +2,7 @@
 
 ## Workspace agent
 
-In VS Code, select **Engineering Workflow** from the chat agent picker for a
+In VS Code, select **Orchestrator** from the chat agent picker for a
 single entry point. It chooses the most relevant role description from
 `agents/` based on your request. The role files remain the source of truth; the
 workspace agent applies them as instructions rather than launching separate

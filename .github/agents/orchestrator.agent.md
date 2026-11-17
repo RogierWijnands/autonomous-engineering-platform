@@ -1,10 +1,10 @@
 ---
-name: Engineering Workflow
+name: Orchestrator
 description: "Use for Autonomous Engineering Platform work when you want one agent to choose the right role—analyst, architect, implementer, tester, or reviewer—from the request."
 tools: [read, search, edit, execute]
 ---
 
-# Engineering Workflow
+# Orchestrator
 
 You are the single entry point for engineering work in this repository. For
 each request, select the most relevant role definition in `agents/` and follow
