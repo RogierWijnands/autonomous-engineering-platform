@@ -8,6 +8,7 @@ interface MakeSubtaskDialogProps {
   candidates: Issue[];
   initialParentKey?: string;
   hasSubtasks: boolean;
+  requestError?: string;
   onConfirm: (parentKey: string) => void;
   onClose: () => void;
 }
@@ -17,6 +18,7 @@ export function MakeSubtaskDialog({
   candidates,
   initialParentKey,
   hasSubtasks,
+  requestError,
   onConfirm,
   onClose,
 }: MakeSubtaskDialogProps) {
@@ -50,12 +52,24 @@ export function MakeSubtaskDialog({
         aria-describedby="make-subtask-issue make-subtask-description"
         onSubmit={submit}
       >
+        {requestError && (
+          <p className="form-error" role="alert">
+            {requestError}
+          </p>
+        )}
         <div className="modal-heading">
           <div>
             <h2 id="make-subtask-title">Make issue a subtask?</h2>
-            <p id="make-subtask-issue" className="modal-project-context">{issue.key}: {issue.summary}</p>
+            <p id="make-subtask-issue" className="modal-project-context">
+              {issue.key}: {issue.summary}
+            </p>
           </div>
-          <button type="button" className="icon-button close-button" aria-label="Close subtask confirmation" onClick={onClose}>
+          <button
+            type="button"
+            className="icon-button close-button"
+            aria-label="Close subtask confirmation"
+            onClick={onClose}
+          >
             <X size={18} />
           </button>
         </div>
@@ -83,20 +97,33 @@ export function MakeSubtaskDialog({
             ))}
           </select>
         </label>
-        {error && <p className="form-error" role="alert">{error}</p>}
+        {error && (
+          <p className="form-error" role="alert">
+            {error}
+          </p>
+        )}
         {parent && (
           <div className="form-notice" role="status">
             {issue.key} will become a Task subtask of {parent.key}.
-            {parent.issueType !== "Story" && ` ${parent.key} will become a Story.`}
-            {hasSubtasks && ` Existing subtasks of ${issue.key} will become standalone Tasks.`}
+            {parent.issueType !== "Story" &&
+              ` ${parent.key} will become a Story.`}
+            {hasSubtasks &&
+              ` Existing subtasks of ${issue.key} will become standalone Tasks.`}
           </div>
         )}
         <div className="modal-footer">
           <div className="modal-buttons">
-            <button type="button" className="secondary-button" data-dialog-initial-focus={Boolean(initialParentKey) || undefined} onClick={onClose}>
+            <button
+              type="button"
+              className="secondary-button"
+              data-dialog-initial-focus={Boolean(initialParentKey) || undefined}
+              onClick={onClose}
+            >
               Cancel
             </button>
-            <button type="submit" className="primary-button">Make subtask</button>
+            <button type="submit" className="primary-button">
+              Make subtask
+            </button>
           </div>
         </div>
       </form>

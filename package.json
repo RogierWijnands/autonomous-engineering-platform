@@ -9,7 +9,7 @@
     "db:logs": "docker compose --env-file .env -f infrastructure/docker-compose.yml logs -f postgres",
     "startup": "dotenv -e .env -- dotnet run --project src/Aep/Aep.csproj",
     "db:migrate": "npm run db:up && dotenv -e .env -- dotnet ef database update --project src/Aep/Aep.csproj --startup-project src/Aep/Aep.csproj",
-    "start": "npm run db:up && concurrently --kill-others --names \"AEP,Jira Simulator\" \"npm run startup\" \"npm run dev --prefix mcp/jira-simulator\"",
+    "start": "npm run db:up && concurrently --kill-others --names \"AEP,Jira Simulator\" \"npm run startup\" \"npm run start --prefix mcp/jira-simulator\"",
     "prepare": "husky"
   },
   "devDependencies": {

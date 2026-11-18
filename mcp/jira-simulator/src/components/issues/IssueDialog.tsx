@@ -17,6 +17,7 @@ interface IssueDialogProps {
   parentIssue?: Issue;
   issue?: Issue;
   hasSubtasks?: boolean;
+  requestError?: string;
   onSave: (draft: IssueDraft) => void;
   onClose: () => void;
 }
@@ -30,14 +31,21 @@ export function IssueDialog({
   parentIssue,
   issue,
   hasSubtasks = false,
+  requestError,
   onSave,
   onClose,
 }: IssueDialogProps) {
   const dialogRef = useDialogFocus<HTMLFormElement>(onClose);
-  const [issueType, setIssueType] = useState<IssueType>(issue?.issueType ?? "Story");
+  const [issueType, setIssueType] = useState<IssueType>(
+    issue?.issueType ?? "Story",
+  );
   const [summaryError, setSummaryError] = useState(false);
   const isSubtask = Boolean(parentIssue || issue?.parentIssueKey);
-  const title = issue ? "Edit issue" : parentIssue ? "Create a subtask" : "Create an issue";
+  const title = issue
+    ? "Edit issue"
+    : parentIssue
+      ? "Create a subtask"
+      : "Create an issue";
 
   function submitIssue(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -45,7 +53,9 @@ export function IssueDialog({
     const summary = formValue(formData, "summary").trim();
     if (!summary) {
       setSummaryError(true);
-      event.currentTarget.querySelector<HTMLInputElement>('[name="summary"]')?.focus();
+      event.currentTarget
+        .querySelector<HTMLInputElement>('[name="summary"]')
+        ?.focus();
       return;
     }
     onSave({
@@ -79,6 +89,11 @@ export function IssueDialog({
         aria-labelledby="issue-dialog-title"
         onSubmit={submitIssue}
       >
+        {requestError && (
+          <p className="form-error" role="alert">
+            {requestError}
+          </p>
+        )}
         <div className="modal-heading">
           <div>
             <h2 id="issue-dialog-title">{title}</h2>
@@ -86,21 +101,25 @@ export function IssueDialog({
               {issue
                 ? `${issue.key} · ${project.name}`
                 : parentIssue
-                ? `Subtask of ${parentIssue.key}`
-                : `Project: ${project.name}`}
+                  ? `Subtask of ${parentIssue.key}`
+                  : `Project: ${project.name}`}
             </p>
           </div>
           <button
             type="button"
             className="icon-button close-button"
-            aria-label={issue ? "Close edit issue form" : "Close create issue form"}
+            aria-label={
+              issue ? "Close edit issue form" : "Close create issue form"
+            }
             onClick={onClose}
           >
             <X size={18} />
           </button>
         </div>
         <label className="form-field">
-          <span>Summary <i aria-hidden="true">*</i></span>
+          <span>
+            Summary <i aria-hidden="true">*</i>
+          </span>
           <input
             data-dialog-initial-focus
             required
@@ -112,7 +131,11 @@ export function IssueDialog({
             aria-describedby={summaryError ? "issue-summary-error" : undefined}
             onChange={() => setSummaryError(false)}
           />
-          {summaryError && <small id="issue-summary-error" className="form-error" role="alert">Enter a summary.</small>}
+          {summaryError && (
+            <small id="issue-summary-error" className="form-error" role="alert">
+              Enter a summary.
+            </small>
+          )}
         </label>
         <label className="form-field">
           <span>Description</span>
@@ -136,10 +159,14 @@ export function IssueDialog({
               <select
                 name="issueType"
                 value={issueType}
-                onChange={(event) => setIssueType(event.target.value as IssueType)}
+                onChange={(event) =>
+                  setIssueType(event.target.value as IssueType)
+                }
               >
                 {issueTypes.map((type) => (
-                  <option key={type} value={type}>{type}</option>
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
                 ))}
               </select>
             </label>
@@ -148,37 +175,58 @@ export function IssueDialog({
             <span>Priority</span>
             <select name="priority" defaultValue={issue?.priority ?? "Medium"}>
               {priorities.map((priority) => (
-                <option key={priority} value={priority}>{priority}</option>
+                <option key={priority} value={priority}>
+                  {priority}
+                </option>
               ))}
             </select>
           </label>
         </div>
         {hasSubtasks && issueType !== "Story" && (
           <p className="form-notice" role="status">
-            Saving this type change will detach the subtasks and make them standalone Tasks.
+            Saving this type change will detach the subtasks and make them
+            standalone Tasks.
           </p>
         )}
         <label className="form-field">
-          <span>Labels <small>comma separated</small></span>
-          <input name="labels" placeholder="e.g. backend, demo" defaultValue={issue?.labels.join(", ")} />
+          <span>
+            Labels <small>comma separated</small>
+          </span>
+          <input
+            name="labels"
+            placeholder="e.g. backend, demo"
+            defaultValue={issue?.labels.join(", ")}
+          />
         </label>
         <label className="form-field">
-          <span>Acceptance criteria <small>one per line</small></span>
+          <span>
+            Acceptance criteria <small>one per line</small>
+          </span>
           <textarea
             name="acceptanceCriteria"
             rows={3}
-            placeholder={"The change works as expected\nTests cover the key cases"}
+            placeholder={
+              "The change works as expected\nTests cover the key cases"
+            }
             defaultValue={issue?.acceptanceCriteria.join("\n")}
           />
         </label>
         <div className="modal-footer">
           <div className="modal-buttons">
-            <button type="button" className="secondary-button" onClick={onClose}>
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={onClose}
+            >
               Cancel
             </button>
             <button type="submit" className="primary-button">
               {!issue && <CirclePlus size={16} />}{" "}
-              {issue ? "Save changes" : parentIssue ? "Create subtask" : "Create issue"}
+              {issue
+                ? "Save changes"
+                : parentIssue
+                  ? "Create subtask"
+                  : "Create issue"}
             </button>
           </div>
         </div>

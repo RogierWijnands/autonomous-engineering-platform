@@ -120,6 +120,14 @@ Implement the requested change with precise, minimal edits that follow existing 
 - Avoid deeply nested conditions, unnecessary indirection, and overly compact expressions.
 - Follow existing project naming conventions while prioritizing clarity.
 - Make the intent of the implementation obvious without requiring extensive investigation.
+- Format every created or changed file with the applicable project or
+  language formatter, including tests, documentation and configuration.
+  Run the relevant formatting check before handoff. If no suitable formatter
+  exists or the file is non-text, review its format manually and report the
+  exception; do not install tooling without a task-specific need.
+- Use blank lines to separate logical steps, validation, control flow and
+  returns where this aids comprehension. Review this explicitly: automatic
+  formatters do not decide where meaningful blank lines belong.
 
 **Code Comments and Documentation.**
 

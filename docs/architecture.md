@@ -9,11 +9,11 @@ draft pull request.
 
 This document describes the intended design and the current implementation.
 One .NET web project contains the HTTP entry point, initial workflow model,
-PostgreSQL persistence, and schema migration. Jira Simulator currently has
-a standalone React UI with in-memory projects and sample issues. Projects
-can be created and edited, and issues can be moved between board statuses;
+PostgreSQL persistence, and schema migration. Jira Simulator has a standalone
+React UI backed by a local TypeScript Node.js API and SQLite database. Projects
+can be created, edited and deleted, and issues can be moved between board statuses;
 Stories can have Task-only subtasks linked to their parent issue. The MCP
-server, persistence, and AEP integration are not implemented. The
+server and AEP integration are not implemented. The
 issue-processing flow and most runtime security controls still need to be
 built and tested.
 The `tests/Aep.Tests/` xUnit project covers PostgreSQL configuration handling
@@ -37,17 +37,27 @@ and append-only audit-event safeguards without requiring a running database.
 
 ## Components and responsibilities
 
-| Component | Responsibility |
-|---|---|
-| `Aep` | One ASP.NET Core project. Its folders separate HTTP controllers, models, services, background services, database access, and integrations. |
-| Jira Simulator | Standalone React/TypeScript UI with in-memory projects and issues; MCP and webhook integration are planned. |
-| PostgreSQL | Persistent workflow state, agent runs, approvals, and audit data. |
-| Docker workspace | Bounded, temporary working environment for agents and their repository checkout. |
+| Component        | Responsibility                                                                                                                             |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Aep`            | One ASP.NET Core project. Its folders separate HTTP controllers, models, services, background services, database access, and integrations. |
+| Jira Simulator   | React/TypeScript UI and local Node.js API with SQLite projects and issues; MCP and webhook integration are planned.                        |
+| PostgreSQL       | Persistent workflow state, agent runs, approvals, and audit data.                                                                          |
+| Docker workspace | Bounded, temporary working environment for agents and their repository checkout.                                                           |
 
 The folder boundaries are logical, not separate assemblies. Agent execution,
 GitHub integration, and background processing will initially live inside this
 project; a component can become a separate project if it later needs independent
 deployment, scaling, or compile-time dependency boundaries.
+
+The simulator API is the source of truth for project and issue changes.
+Project renames, subtask conversions and deletions run in SQLite transactions,
+including their related issue updates. Deleting a project deletes its issues;
+deleting a Story deletes its subtasks. Deletions reject stale related-issue
+lists, and per-project issue sequences prevent key reuse after deletion.
+New databases start empty; existing databases are
+preserved. The browser requests state through Vite's local proxy and
+shows loading and error feedback. The API is local-only and unauthenticated;
+it is not a production or multi-user security boundary.
 
 ## Main flows
 

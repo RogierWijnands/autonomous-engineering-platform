@@ -11,7 +11,9 @@ allows interactive browser navigation, keyboard interaction, and visual
 inspection. Do not enter credentials or navigate to external sites during
 simulator reviews.
 
-The repeatable browser suite runs the simulator locally on port 4173:
+The repeatable browser suite runs the simulator locally on port 4173 and an
+isolated test API on port 4301 with an in-memory SQLite database. Each test
+resets that database with test fixtures; the normal persisted database is never used:
 
 ```sh
 npm run test:install-browsers --prefix mcp/jira-simulator
@@ -22,7 +24,7 @@ The browser suite lives directly in `mcp/jira-simulator/e2e/`. Its spec files
 group scenarios by feature: projects, issues and dialogs, the issue board and
 list, issue status controls, and subtasks. Together they cover project creation
 and renaming, issue creation and status changes, subtasks, filtering, board
-drag-and-drop, and dialog keyboard behavior, including relevant accessibility
+drag-and-drop, deletion confirmations and dialog keyboard behavior, including relevant accessibility
 semantics.
 
 ## Evidence and limits

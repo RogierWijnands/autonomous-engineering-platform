@@ -14,11 +14,14 @@ interface IssueDetailPanelProps {
   focusEditAction?: boolean;
   focusSubtaskAction?: boolean;
   focusStandaloneAction?: boolean;
+  focusDeleteAction?: boolean;
   fallbackFocusRef?: RefObject<HTMLElement>;
   canMakeSubtask: boolean;
+  requestError?: string;
   onClose: () => void;
   onUpdate: (issue: Issue) => void;
   onEdit: (issue: Issue) => void;
+  onDelete?: (issue: Issue) => void;
   onMakeSubtask: (issue: Issue) => void;
   onMakeStandalone: (issue: Issue) => void;
   onCreateSubtask: (issue: Issue) => void;
@@ -33,11 +36,14 @@ export function IssueDetailPanel({
   focusEditAction = false,
   focusSubtaskAction = false,
   focusStandaloneAction = false,
+  focusDeleteAction = false,
   fallbackFocusRef,
   canMakeSubtask,
+  requestError,
   onClose,
   onUpdate,
   onEdit,
+  onDelete,
   onMakeSubtask,
   onMakeStandalone,
   onCreateSubtask,
@@ -48,7 +54,8 @@ export function IssueDetailPanel({
   const wasSubtask = useRef(Boolean(issue.parentIssueKey));
 
   useLayoutEffect(() => {
-    if (wasSubtask.current && !issue.parentIssueKey) headingRef.current?.focus();
+    if (wasSubtask.current && !issue.parentIssueKey)
+      headingRef.current?.focus();
     wasSubtask.current = Boolean(issue.parentIssueKey);
   }, [issue.parentIssueKey]);
 
@@ -94,10 +101,26 @@ export function IssueDetailPanel({
           </button>
         </div>
         <div className="detail-content">
+          {requestError && (
+            <p className="form-error" role="alert">
+              {requestError}
+            </p>
+          )}
           <div className="detail-type">
             <IssueTypeIcon type={issue.issueType} /> {issue.issueType}
           </div>
-          <h2 ref={headingRef} id="issue-detail-title" data-dialog-initial-focus={(!focusEditAction && !focusSubtaskAction && !focusStandaloneAction) || undefined} tabIndex={-1}>
+          <h2
+            ref={headingRef}
+            id="issue-detail-title"
+            data-dialog-initial-focus={
+              (!focusEditAction &&
+                !focusSubtaskAction &&
+                !focusStandaloneAction &&
+                !focusDeleteAction) ||
+              undefined
+            }
+            tabIndex={-1}
+          >
             {issue.summary}
           </h2>
           <p className="detail-key">{issue.key}</p>
@@ -127,6 +150,16 @@ export function IssueDetailPanel({
             >
               <Pencil size={14} /> Edit issue
             </button>
+            {onDelete && (
+              <button
+                type="button"
+                className="secondary-button"
+                data-dialog-initial-focus={focusDeleteAction || undefined}
+                onClick={() => onDelete(issue)}
+              >
+                Delete issue
+              </button>
+            )}
             {canMakeSubtask && (
               <button
                 type="button"
@@ -148,21 +181,30 @@ export function IssueDetailPanel({
               </button>
             )}
             <label className="status-select">
-              <span className={`status-dot status-${issue.status.toLowerCase().replace(" ", "-")}`} />
+              <span
+                className={`status-dot status-${issue.status.toLowerCase().replace(" ", "-")}`}
+              />
               <select
                 aria-label="Change issue status"
                 value={issue.status}
                 onChange={(event) =>
-                  onUpdate({ ...issue, status: event.target.value as IssueStatus })
+                  onUpdate({
+                    ...issue,
+                    status: event.target.value as IssueStatus,
+                  })
                 }
               >
                 {issueStatuses.map((status) => (
-                  <option key={status} value={status}>{status}</option>
+                  <option key={status} value={status}>
+                    {status}
+                  </option>
                 ))}
               </select>
               <ChevronDown size={14} />
             </label>
-            <span className={`priority-pill priority-pill-${issue.priority.toLowerCase()}`}>
+            <span
+              className={`priority-pill priority-pill-${issue.priority.toLowerCase()}`}
+            >
               <PriorityIcon priority={issue.priority} /> {issue.priority}
             </span>
           </div>
@@ -176,13 +218,17 @@ export function IssueDetailPanel({
           <div className="detail-section">
             <h3>
               Acceptance criteria
-              <span className="criteria-count">{issue.acceptanceCriteria.length}</span>
+              <span className="criteria-count">
+                {issue.acceptanceCriteria.length}
+              </span>
             </h3>
             {issue.acceptanceCriteria.length > 0 ? (
               <ul className="criteria-list">
                 {issue.acceptanceCriteria.map((criterion, index) => (
                   <li key={`${index}-${criterion}`}>
-                    <span className="criteria-check"><Check size={12} /></span>
+                    <span className="criteria-check">
+                      <Check size={12} />
+                    </span>
                     <span>{criterion}</span>
                   </li>
                 ))}
@@ -194,15 +240,22 @@ export function IssueDetailPanel({
           <div className="detail-section">
             <h3>Labels</h3>
             <div className="detail-labels">
-              {issue.labels.length > 0
-                ? issue.labels.map((label) => (
-                    <span className="issue-label" key={label}>{label}</span>
-                  ))
-                : <span className="detail-muted">No labels</span>}
+              {issue.labels.length > 0 ? (
+                issue.labels.map((label) => (
+                  <span className="issue-label" key={label}>
+                    {label}
+                  </span>
+                ))
+              ) : (
+                <span className="detail-muted">No labels</span>
+              )}
             </div>
           </div>
           {issue.issueType === "Story" && (
-            <section className="detail-section subtasks-section" aria-label="Subtasks">
+            <section
+              className="detail-section subtasks-section"
+              aria-label="Subtasks"
+            >
               <div className="subtasks-heading">
                 <h3>
                   Subtasks
@@ -228,7 +281,9 @@ export function IssueDetailPanel({
                         onClick={() => onOpenIssue(subtask)}
                       >
                         <span className="subtask-key">{subtask.key}</span>
-                        <span className="subtask-summary">{subtask.summary}</span>
+                        <span className="subtask-summary">
+                          {subtask.summary}
+                        </span>
                         <span className="subtask-status">{subtask.status}</span>
                       </button>
                     </li>
@@ -243,11 +298,17 @@ export function IssueDetailPanel({
             <h3>Details</h3>
             <div className="detail-property">
               <span>Issue type</span>
-              <strong><IssueTypeIcon type={issue.issueType} />{issue.issueType}</strong>
+              <strong>
+                <IssueTypeIcon type={issue.issueType} />
+                {issue.issueType}
+              </strong>
             </div>
             <div className="detail-property">
               <span>Priority</span>
-              <strong><PriorityIcon priority={issue.priority} />{issue.priority}</strong>
+              <strong>
+                <PriorityIcon priority={issue.priority} />
+                {issue.priority}
+              </strong>
             </div>
           </div>
         </div>

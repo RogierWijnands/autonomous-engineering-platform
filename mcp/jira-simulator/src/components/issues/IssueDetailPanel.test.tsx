@@ -48,6 +48,28 @@ function renderPanel(
 }
 
 describe("IssueDetailPanel subtasks", () => {
+  it("requests deletion for the currently displayed issue", () => {
+    const onDelete = vi.fn();
+    render(
+      <IssueDetailPanel
+        issue={story}
+        subtasks={[]}
+        projectName="Alpha Project"
+        canMakeSubtask={false}
+        onClose={vi.fn()}
+        onUpdate={vi.fn()}
+        onEdit={vi.fn()}
+        onDelete={onDelete}
+        onMakeSubtask={vi.fn()}
+        onMakeStandalone={vi.fn()}
+        onCreateSubtask={vi.fn()}
+        onOpenIssue={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Delete issue" }));
+    expect(onDelete).toHaveBeenCalledWith(story);
+  });
+
   it("offers subtasks only on Stories and opens a listed subtask", () => {
     const onCreateSubtask = vi.fn();
     const onOpenIssue = vi.fn();
@@ -90,15 +112,26 @@ describe("IssueDetailPanel subtasks", () => {
     expect(
       screen.queryByRole("button", { name: /Add subtask/ }),
     ).not.toBeInTheDocument();
-    const breadcrumb = screen.getByRole("navigation", { name: "Issue breadcrumb" });
-    expect(breadcrumb).toHaveTextContent("Alpha Project / ALPHA-1001 / ALPHA-1002");
-    expect(within(breadcrumb).getByText("ALPHA-1002")).toHaveAttribute("aria-current", "page");
-    const parentButton = screen.getByRole("button", { name: "Open parent issue ALPHA-1001: Implement validation" });
+    const breadcrumb = screen.getByRole("navigation", {
+      name: "Issue breadcrumb",
+    });
+    expect(breadcrumb).toHaveTextContent(
+      "Alpha Project / ALPHA-1001 / ALPHA-1002",
+    );
+    expect(within(breadcrumb).getByText("ALPHA-1002")).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    const parentButton = screen.getByRole("button", {
+      name: "Open parent issue ALPHA-1001: Implement validation",
+    });
     expect(parentButton).toHaveTextContent("ALPHA-1001: Implement validation");
     expect(screen.getByText("Subtask of")).toBeInTheDocument();
     fireEvent.click(parentButton);
     expect(onOpenIssue).toHaveBeenCalledWith(story);
-    fireEvent.click(within(breadcrumb).getByRole("button", { name: /ALPHA-1001/ }));
+    fireEvent.click(
+      within(breadcrumb).getByRole("button", { name: /ALPHA-1001/ }),
+    );
 
     expect(onOpenIssue).toHaveBeenCalledWith(story);
     expect(
@@ -108,8 +141,12 @@ describe("IssueDetailPanel subtasks", () => {
 
   it("reports the parent key when the referenced parent cannot be found", () => {
     renderPanel(subtask);
-    expect(screen.getByText("ALPHA-1001 (parent issue not found)")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Open parent issue/ })).not.toBeInTheDocument();
+    expect(
+      screen.getByText("ALPHA-1001 (parent issue not found)"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Open parent issue/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("offers a standalone action only for subtasks", () => {
@@ -130,7 +167,9 @@ describe("IssueDetailPanel subtasks", () => {
         onOpenIssue={vi.fn()}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Make standalone task" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Make standalone task" }),
+    );
     expect(onMakeStandalone).toHaveBeenCalledWith(subtask);
     rerender(
       <IssueDetailPanel
@@ -147,7 +186,9 @@ describe("IssueDetailPanel subtasks", () => {
         onOpenIssue={vi.fn()}
       />,
     );
-    expect(screen.queryByRole("button", { name: "Make standalone task" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Make standalone task" }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText("Subtask of")).not.toBeInTheDocument();
   });
 
@@ -171,6 +212,8 @@ describe("IssueDetailPanel subtasks", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Move subtask" }));
     expect(onMakeSubtask).toHaveBeenCalledWith(subtask);
-    expect(screen.getByRole("button", { name: "Make standalone task" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Make standalone task" }),
+    ).toBeInTheDocument();
   });
 });

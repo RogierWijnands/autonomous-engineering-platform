@@ -37,8 +37,8 @@ For frontend changes, UI/UX provides a design brief before development and
 reviews the implementation afterward. Both UI/UX stages report not applicable
 when no user-facing interface changes.
 
-Jira Simulator runs locally. The first step is a standalone browser UI with
-sample issues; MCP, persistence, and AEP integration are not implemented yet.
+Jira Simulator runs locally with a Node.js API and SQLite persistence.
+MCP and AEP integration are not implemented yet.
 The AEP also runs locally. Only model calls and the GitHub integration require
 internet access.
 
@@ -52,20 +52,20 @@ internet access.
 
 ## Technology stack
 
-| Component | Technology |
-|---|---|
-| Orchestrator | .NET 10 LTS |
-| API | ASP.NET Core |
-| Workflow engine | Custom persisted state machine |
-| Database | PostgreSQL 17 |
-| ORM | EF Core + Npgsql |
-| Agent runtime | GitHub Copilot CLI |
-| MCP server | TypeScript + official MCP SDK |
-| Jira Simulator | React + TypeScript |
-| Agent isolation | Docker |
-| Source control | GitHub |
-| Logging | Serilog |
-| Tests | xUnit (.NET), Vitest + Testing Library (simulator) |
+| Component       | Technology                                         |
+| --------------- | -------------------------------------------------- |
+| Orchestrator    | .NET 10 LTS                                        |
+| API             | ASP.NET Core                                       |
+| Workflow engine | Custom persisted state machine                     |
+| Database        | PostgreSQL 17                                      |
+| ORM             | EF Core + Npgsql                                   |
+| Agent runtime   | GitHub Copilot CLI                                 |
+| MCP server      | TypeScript + official MCP SDK                      |
+| Jira Simulator  | React + TypeScript, Node.js 24 + SQLite            |
+| Agent isolation | Docker                                             |
+| Source control  | GitHub                                             |
+| Logging         | Serilog                                            |
+| Tests           | xUnit (.NET), Vitest + Testing Library (simulator) |
 
 ## Workflow
 
@@ -118,8 +118,10 @@ Agent prompts, outputs, and tool results belong in an artifact store; the
 database model keeps bounded metadata, hashes, statuses, and artifact
 references instead. Audit events are append-only through the EF Core context.
 
-Run `npm run start` from the repository root to start PostgreSQL, the AEP, and
-Jira Simulator together. The simulator is available at
+Run `npm run start` from the repository root to start PostgreSQL, the AEP,
+the Jira Simulator Node.js API, and its Vite frontend together. The root
+command starts the simulator's `npm run start`, which starts both the API and
+frontend; do not start a second API separately. The simulator is available at
 `http://127.0.0.1:5173/`; press Ctrl+C to stop the AEP and simulator. The app
 applies checked-in EF Core migrations before accepting requests. `npm run startup`
 starts only the AEP (PostgreSQL must already be running); `npm run db:migrate`
@@ -130,14 +132,22 @@ starts PostgreSQL if needed and applies migrations explicitly. Run
 dotenv -e .env -- dotnet ef migrations add <MigrationName> --project src/Aep/Aep.csproj --startup-project src/Aep/Aep.csproj
 ```
 
+The root start command is the standard entry point for all local application
+projects and required runtime processes. New processes must be included in the
+startup chain and its documentation when they are added; see
+[Contributing](docs/contributing.md#local-startup).
+
 ## Jira simulator
 
-Jira Simulator is the standalone React and TypeScript app in
-`mcp/jira-simulator/`. Run `npm install` in that directory once, then use
-`npm run dev` there and open the local address printed by Vite. Projects can
-be created and edited; issues belong to the selected project, can be searched
+Jira Simulator is the standalone React app and Node.js API in
+`mcp/jira-simulator/`, both written in TypeScript. The API runs directly with
+Node's built-in TypeScript type stripping; `npm run build` type-checks it as
+well as the frontend. Install Node.js 24 or newer and run `npm install` in
+that directory once, then use
+`npm run start` there and open the local address printed by Vite. Projects can
+be created, edited and deleted; issues belong to the selected project, can be searched
 and filtered, viewed as a board or list, moved between statuses by dragging,
-and created or updated in memory. Issue details provide an edit form for all
+and created, updated or deleted. Issue details provide an edit form for all
 fields available during creation. Changing a Story with subtasks into another
 issue type detaches those subtasks as standalone Tasks. Stories can have
 Task-only subtasks; these
@@ -167,20 +177,52 @@ top-level cards from matching subtasks. Clearing filters closes automatically
 expanded subtasks, but preserves those manually opened until manually closed.
 In list view, subtasks appear as individual filtered rows. When the project
 contains subtasks, a Subtask of column shows their parent issue IDs.
-The default health-check Story includes two example subtasks. Issue-ID prefixes
-are derived from the first word of the project name, and renaming a project
+Issue-ID prefixes are derived from the first word of the project name, and renaming a project
 updates issue IDs and subtask references.
-Refreshing the page resets all project and issue data. The UI does not yet
-persist changes or connect to MCP or the AEP. The React UI is organized into
+Deleting a project also permanently deletes all of its issues. Deleting a Story
+also permanently deletes its subtasks; deleting a subtask leaves its parent
+and siblings intact. Each deletion requires confirmation and states its impact.
+If the related issues changed since the confirmation opened, the API rejects
+the deletion; refresh and review it again. Issue numbers are not reused within
+an existing project after deletion.
+The API stores data in `mcp/jira-simulator/api/jira.sqlite`. A new database
+starts empty; create a project to begin. Existing databases and their contents
+are not changed on upgrade, including any previously seeded demo data. To
+start fresh without deleting existing data, stop the simulator and set
+`JIRA_DB_PATH` to a new file before starting it again. Data survives refreshes
+and restarts. The API binds to `127.0.0.1:3001`; Vite proxies `/api` from
+`127.0.0.1:5173` (or `127.0.0.1:4173` for preview/tests). Both ports must be
+available. `npm run start` starts the API and Vite together using the commands
+in the simulator's `package.json`; extra arguments after `--` are passed to
+Vite. Stopping either process also stops the other. To use `npm run preview`, start
+`npm run api` separately. Set `JIRA_DB_PATH` to choose another database file,
+or `JIRA_API_PORT` to choose another API port (set it for both API and Vite).
+Node's built-in SQLite module may emit an experimental-feature warning.
+
+The local API has no authentication and is not suitable for exposure to a
+network or untrusted local users. It validates input, limits request size,
+checks host and browser origin, and uses restrictive permissions for newly
+created database files. Issue data is stored unencrypted; protect and back up
+the database appropriately, and copy it only while the API is stopped. The
+database and its SQLite sidecar files are ignored by Git. Deletions are
+permanent; restore from a backup if deleted data is needed again.
+
+The UI does not yet connect to MCP or the AEP. The React UI is organized into
 reusable components under `src/components/common/`, `src/components/issues/`,
-and `src/components/projects/`; sample data lives in `src/data/`. Run its unit
+and `src/components/projects/`; example data is used only as test fixtures. Run its unit
 tests and production build from the repository root:
 
 ```sh
+npm run format:check --prefix mcp/jira-simulator
 npm test --prefix mcp/jira-simulator
+npm run test:api --prefix mcp/jira-simulator
+npm run test:startup --prefix mcp/jira-simulator
 npm run build --prefix mcp/jira-simulator
 npm audit --prefix mcp/jira-simulator
 ```
+
+Use `npm run format --prefix mcp/jira-simulator` to format its `.ts` files
+with Prettier. See [Contributing](docs/contributing.md#code-readability-and-formatting).
 
 For interactive browser review, VS Code can start the isolated Playwright MCP
 server configured in `.mcp.json` after you approve it. Run the
