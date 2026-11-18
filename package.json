@@ -7,9 +7,11 @@
     "db:up": "docker compose --env-file .env -f infrastructure/docker-compose.yml up -d --wait",
     "db:down": "docker compose --env-file .env -f infrastructure/docker-compose.yml down",
     "db:logs": "docker compose --env-file .env -f infrastructure/docker-compose.yml logs -f postgres",
-    "startup": "dotenv -e .env -- dotnet run --project src/Aep/Aep.csproj",
-    "db:migrate": "npm run db:up && dotenv -e .env -- dotnet ef database update --project src/Aep/Aep.csproj --startup-project src/Aep/Aep.csproj",
-    "start": "npm run db:up && concurrently --kill-others --names \"AEP,Jira Simulator\" \"npm run startup\" \"npm run start --prefix mcp/jira-simulator\"",
+    "startup": "dotenv -e .env -- dotnet run --project aep/src/Aep/Aep.csproj",
+    "dev": "nodemon --exitcrash --signal SIGTERM --watch aep/src/Aep --ext cs,csproj,json --ignore \"aep/src/Aep/bin/**\" --ignore \"aep/src/Aep/obj/**\" --exec \"dotenv -e .env -- dotnet run --project aep/src/Aep/Aep.csproj\"",
+    "test:dev": "node --test aep/tests/*.test.mjs",
+    "db:migrate": "npm run db:up && cd aep && dotenv -e ../.env -- dotnet ef database update --project src/Aep/Aep.csproj --startup-project src/Aep/Aep.csproj",
+    "start": "npm run db:up && concurrently --kill-others --names \"AEP,Jira Simulator,Jira MCP\" \"npm run dev\" \"npm run start --prefix mcp/jira-simulator\" \"npm run dev --prefix mcp/jira-simulator-mcp-server\"",
     "prepare": "husky"
   },
   "devDependencies": {
@@ -17,6 +19,7 @@
     "@commitlint/config-conventional": "^19.8.1",
     "concurrently": "^10.0.7",
     "dotenv-cli": "^10.0.0",
-    "husky": "^9.1.7"
+    "husky": "^9.1.7",
+    "nodemon": "^3.1.14"
   }
 }

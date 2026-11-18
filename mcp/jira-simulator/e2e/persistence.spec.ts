@@ -82,7 +82,7 @@ test("announces loading, retains failed input, and persists successful changes",
 
   await page.unroute("**/api/state");
 
-  await page.getByRole("button", { name: "Create issue", exact: true }).click();
+  await page.getByRole("button", { name: "Create issue in Done" }).click();
 
   const dialog = page.getByRole("dialog", { name: "Create an issue" });
 
@@ -113,6 +113,9 @@ test("announces loading, retains failed input, and persists successful changes",
 
   await expect(dialog.getByRole("alert")).toHaveText("Save failed.");
   await expect(dialog.getByLabel("Summary")).toHaveValue("Persistent issue");
+  await expect(dialog).toHaveAccessibleDescription(
+    "Project: Demo Project · Status: Done",
+  );
 
   await dialog
     .getByRole("button", { name: "Create issue", exact: true })
@@ -121,6 +124,9 @@ test("announces loading, retains failed input, and persists successful changes",
   await expect(
     page.getByRole("dialog", { name: "Persistent issue" }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("combobox", { name: "Change issue status" }),
+  ).toHaveValue("Done");
 
   await page.reload();
 

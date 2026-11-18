@@ -11,8 +11,8 @@ report not applicable with a reason. Every role uses WCAG 2.2 AA as the
 engineering target for user-facing interfaces; this is not a claim of legal
 compliance. Every role reports what it did and marks unnecessary work, such as
 tests for a documentation-only change, as not applicable with a reason. The
-role files remain the source of truth; the workspace agent applies them as
-instructions rather than launching separate agents.
+role files in `aep/agents/` remain the source of truth; the workspace agent
+applies them as instructions rather than launching separate agents.
 
 ## Local startup
 
@@ -24,11 +24,26 @@ the setup documentation, and verify startup and shutdown. Respect the
 security model and approval boundaries; explicitly report services that cannot
 be started safely rather than silently leaving them out.
 
+The root command runs AEP, the simulator API, and the MCP server with
+development watchers, and the frontend with Vite. Verify code changes are
+reloaded when modifying these startup scripts. The standalone AEP `startup`,
+simulator `api`, and MCP `start` scripts do not watch for changes.
+Run `npm run test:dev` at the root for the AEP startup scripts and watcher tests
+in `aep/tests/`. Run `npm run test:startup` in the simulator directory for its
+watcher and startup failures, and `npm test` in the MCP server directory for
+its watcher.
+
 ## Code readability and formatting
+
+Keep API entrypoints focused and organize routes and related functionality into
+readable modules or folders by responsibility. Preserve common security checks
+at the shared request boundary and avoid unnecessary layers or indirection.
 
 Write clear control flow with descriptive names and blank lines that separate
 logical steps, validation, control flow and returns where helpful.
-Comments should explain non-obvious intent or constraints, not restate code.
+When creating or changing code, assess logical blocks for concise section
+comments that clarify non-obvious purpose, boundaries or behavior, including
+business rules and security constraints. Avoid comments that merely restate code.
 Format every created or changed file, including tests, documentation and
 configuration, using the applicable project or language formatter and run
 its check. For non-text or unsupported files, review the format manually and

@@ -1,42 +1,24 @@
 import { randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
-import type { Issue, IssueDraft, IssueStatus, Project } from "../src/types.ts";
-import { projectIssuePrefix } from "../src/utils/projectIssuePrefix.ts";
+import { isDeepStrictEqual } from "node:util";
+import type {
+  Issue,
+  IssueDraft,
+  IssueStatus,
+  Project,
+} from "../../src/types.ts";
+import { isEvidenceDocument } from "../../src/utils/evidence.ts";
+import {
+  isIssueFields,
+  isIssueStatus,
+  isRecord,
+} from "../../src/utils/issueValidation.ts";
+import { projectIssuePrefix } from "../../src/utils/projectIssuePrefix.ts";
 
 type IssueFields = IssueDraft & { status: IssueStatus };
 type Snapshot = { projects: Project[]; issues: Issue[] };
 
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
-function isIssueStatus(value: unknown): value is IssueStatus {
-  return value === "To Do" || value === "In Progress" || value === "Done";
-}
-
-function isIssueFields(
-  value: unknown,
-): value is IssueFields & Record<string, unknown> {
-  return (
-    isRecord(value) &&
-    typeof value.summary === "string" &&
-    typeof value.description === "string" &&
-    (value.issueType === "Story" ||
-      value.issueType === "Task" ||
-      value.issueType === "Bug") &&
-    (value.priority === "Highest" ||
-      value.priority === "High" ||
-      value.priority === "Medium" ||
-      value.priority === "Low") &&
-    isIssueStatus(value.status) &&
-    Array.isArray(value.labels) &&
-    Array.isArray(value.acceptanceCriteria) &&
-    [...value.labels, ...value.acceptanceCriteria].every(
-      (item: unknown) => typeof item === "string",
-    )
-  );
-}
-
+// Apply write limits separately from the shape required to read older issues.
 function isValidIssueFields(
   value: unknown,
 ): value is IssueFields & Record<string, unknown> {
@@ -56,11 +38,13 @@ function isIssue(value: unknown): value is Issue {
     isIssueFields(value) &&
     typeof value.key === "string" &&
     typeof value.projectId === "string" &&
+    (value.evidence === undefined || isEvidenceDocument(value.evidence)) &&
     (value.parentIssueKey === undefined ||
       typeof value.parentIssueKey === "string")
   );
 }
 
+// Treat persisted JSON as untrusted and fail if it no longer matches the model.
 function parseIssue(data: unknown): Issue {
   if (typeof data !== "string") {
     throw new Error("Invalid issue data in database.");
@@ -87,6 +71,7 @@ export class InputError extends Error {
 export function createStore(path: string) {
   const db = new DatabaseSync(path);
 
+  // Keep issue data with its project and retain per-project key sequences.
   db.exec(`
     PRAGMA foreign_keys = ON;
     CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, name TEXT NOT NULL);
@@ -108,6 +93,7 @@ export function createStore(path: string) {
   );
   const updateIssue = db.prepare("UPDATE issues SET data = ? WHERE key = ?");
 
+  // The UI consumes projects in creation order and issues newest first.
   const snapshot = (): Snapshot => ({
     projects: db
       .prepare("SELECT id, name FROM projects ORDER BY rowid")
@@ -125,6 +111,7 @@ export function createStore(path: string) {
       .map(({ data }) => parseIssue(data)),
   });
 
+  // Related project and issue changes must either all commit or all roll back.
   const transaction = <T>(callback: () => T): T => {
     db.exec("BEGIN IMMEDIATE");
 
@@ -180,6 +167,7 @@ export function createStore(path: string) {
   const projectIssues = (id: string) =>
     snapshot().issues.filter((issue) => issue.projectId === id);
 
+  // Initialize a missing sequence from existing keys before allocation or deletion.
   const ensureSequence = (id: string) => {
     const latest = projectIssues(id).reduce(
       (max, issue) =>
@@ -192,6 +180,7 @@ export function createStore(path: string) {
     ).run(id, latest);
   };
 
+  // Require confirmation against the current set of issues before deletion.
   const checkAffectedIssues = (expected: unknown, actual: Issue[]) => {
     if (
       !Array.isArray(expected) ||
@@ -214,6 +203,7 @@ export function createStore(path: string) {
     }
   };
 
+  // Project names and derived issue prefixes must be unique.
   function validateProject(
     name: unknown,
     id?: unknown,
@@ -247,7 +237,9 @@ export function createStore(path: string) {
 
   return {
     snapshot,
+    getIssue,
     close: () => db.close(),
+    // Replace fixtures atomically; the HTTP route also requires test mode.
     resetTestData(data: unknown) {
       if (
         !isRecord(data) ||
@@ -301,6 +293,7 @@ export function createStore(path: string) {
       });
     },
 
+    // A changed project prefix also changes issue keys and parent references.
     updateProject(id: unknown, name: unknown) {
       return transaction(() => {
         const project = getProject(id);
@@ -335,6 +328,7 @@ export function createStore(path: string) {
       });
     },
 
+    // Delete only the related issues that the caller confirmed.
     deleteProject(id: unknown, expectedIssueKeys: unknown) {
       return transaction(() => {
         const project = getProject(id);
@@ -350,10 +344,19 @@ export function createStore(path: string) {
       });
     },
 
-    createIssue(projectId: unknown, draft: unknown, parentIssueKey?: unknown) {
+    // Validate the initial status and enforce subtask parent and type rules.
+    createIssue(
+      projectId: unknown,
+      draft: unknown,
+      parentIssueKey?: unknown,
+      initialStatus?: unknown,
+    ) {
       return transaction(() => {
         const project = getProject(projectId);
-        const issue = { ...(isRecord(draft) ? draft : {}), status: "To Do" };
+        const issue = {
+          ...(isRecord(draft) ? draft : {}),
+          status: initialStatus === undefined ? "To Do" : initialStatus,
+        };
 
         if (!isValidIssueFields(issue)) {
           throw new InputError("Invalid issue data.");
@@ -413,6 +416,7 @@ export function createStore(path: string) {
       });
     },
 
+    // Preserve identity and evidence; detach children if a Story changes type.
     updateIssue(key: unknown, data: unknown) {
       return transaction(() => {
         const current = getIssue(key);
@@ -456,6 +460,46 @@ export function createStore(path: string) {
       });
     },
 
+    // Compare the previous document in the transaction to prevent lost edits.
+    updateEvidence(key: unknown, expected: unknown, evidence: unknown) {
+      return transaction(() => {
+        const issue = getIssue(key);
+
+        if (!isEvidenceDocument(evidence)) {
+          throw new InputError("Invalid evidence document.");
+        }
+        if (!isDeepStrictEqual(issue.evidence ?? null, expected)) {
+          throw new InputError(
+            "Evidence has changed. Refresh and review it before saving.",
+            409,
+          );
+        }
+
+        issue.evidence = evidence;
+        saveIssue(issue);
+        return snapshot();
+      });
+    },
+
+    // MCP completion is limited to the In Progress -> Done transition.
+    completeIssue(key: unknown) {
+      return transaction(() => {
+        const issue = getIssue(key);
+
+        if (issue.status !== "In Progress") {
+          throw new InputError(
+            "Issue must be In Progress to complete it.",
+            409,
+          );
+        }
+
+        issue.status = "Done";
+        saveIssue(issue);
+        return snapshot();
+      });
+    },
+
+    // Confirm and delete subtasks together with their parent issue.
     deleteIssue(key: unknown, expectedSubtaskKeys: unknown) {
       return transaction(() => {
         const issue = getIssue(key);
@@ -478,6 +522,7 @@ export function createStore(path: string) {
       });
     },
 
+    // Conversions preserve the issue while updating its parent relationship.
     makeStandalone(key: unknown, status: unknown) {
       return transaction(() => {
         const issue = getIssue(key);
@@ -494,6 +539,7 @@ export function createStore(path: string) {
       });
     },
 
+    // A new parent becomes a Story, and existing children are detached.
     makeSubtask(key: unknown, parentKey: unknown) {
       return transaction(() => {
         const issue = getIssue(key);

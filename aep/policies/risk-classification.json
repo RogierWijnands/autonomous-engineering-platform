@@ -10,7 +10,11 @@
       "approvalRequired": true
     },
     "high": {
-      "examples": ["Authentication or authorization changes", "Production infrastructure changes", "Data migrations"],
+      "examples": [
+        "Authentication or authorization changes",
+        "Production infrastructure changes",
+        "Data migrations"
+      ],
       "approvalRequired": true
     }
   },

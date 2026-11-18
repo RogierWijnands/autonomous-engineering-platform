@@ -978,6 +978,8 @@ p {
   font-size: 9px;
   cursor: pointer;
 }
+.detail-actions > .primary-button,
+.detail-actions > .secondary-button,
 .detail-actions > .status-select,
 .detail-actions > .priority-pill {
   height: 34px;
@@ -991,6 +993,51 @@ p {
 }
 .detail-section {
   margin-top: 23px;
+}
+.evidence-content,
+.evidence-editor {
+  color: #303943;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.evidence-content img,
+.evidence-editor img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+.evidence-content p {
+  white-space: pre-wrap;
+}
+.detail-muted.evidence-empty {
+  margin-bottom: 8px;
+}
+.evidence-toolbar,
+.evidence-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0;
+}
+.evidence-toolbar [aria-pressed="true"] {
+  background: #d3efde;
+  border-color: #347b52;
+}
+.evidence-editor .tiptap {
+  min-height: 120px;
+  padding: 10px;
+  border: 1px solid #87928c;
+  border-radius: 6px;
+  background: white;
+  white-space: pre-wrap;
+}
+.evidence-editor .tiptap:focus-visible {
+  outline: 3px solid #347b52;
+  outline-offset: 2px;
+}
+.evidence-editor .tiptap img:focus {
+  outline: 3px solid #176b4a;
+  outline-offset: 3px;
 }
 .detail-section h3 {
   display: flex;
@@ -1056,10 +1103,10 @@ p {
 }
 .detail-property {
   display: grid;
-  grid-template-columns: 110px 1fr;
+  grid-template-columns: 110px minmax(0, 1fr);
   align-items: center;
   min-height: 32px;
-  color: #9299a2;
+  color: #5d6570;
   font-size: 10px;
 }
 .detail-property strong {
@@ -1071,8 +1118,21 @@ p {
   font-weight: 500;
 }
 .detail-labels {
+  min-width: 0;
   min-height: 19px;
   align-items: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.detail-labels .issue-label {
+  min-width: 0;
+  max-width: 100%;
+  color: #52685d;
+  overflow-wrap: anywhere;
+}
+.detail-labels.detail-muted {
+  color: #5d6570;
 }
 .subtasks-section {
   padding-top: 17px;
@@ -1143,6 +1203,30 @@ p {
   justify-content: center;
   padding: 20px;
   background: #18211d66;
+}
+.image-dialog-overlay {
+  z-index: 9;
+}
+.image-dialog #image-dialog-help {
+  color: #414851;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.image-dialog .form-field {
+  font-size: 12px;
+}
+.image-dialog .form-field input {
+  min-width: 0;
+  font-size: 13px;
+}
+.image-dialog .form-error {
+  font-size: 12px;
+}
+.execute-dialog #execute-description {
+  color: #414851;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 .create-modal {
   width: min(520px, 100%);
@@ -1614,7 +1698,8 @@ textarea:focus-visible,
 .detail-property,
 .form-field small,
 .form-field input::placeholder,
-.form-field textarea::placeholder {
+.form-field textarea::placeholder,
+.modal-project-context {
   color: #626b76;
 }
 

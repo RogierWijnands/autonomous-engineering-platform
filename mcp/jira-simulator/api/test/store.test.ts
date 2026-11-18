@@ -4,9 +4,147 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { createStore, InputError } from "./store.ts";
-import { initialProjects } from "../src/test/fixtures/projects.ts";
-import { initialIssues } from "../src/test/fixtures/issues.ts";
+import { createStore, InputError } from "../database/store.ts";
+import { initialProjects } from "../../src/test/fixtures/projects.ts";
+import { initialIssues } from "../../src/test/fixtures/issues.ts";
+
+test("stores SQL and markup payloads as literal project and issue data", () => {
+  const store = createStore(":memory:");
+  try {
+    const payload = "Demo'; DROP TABLE issues; -- <script>alert(1)</script>";
+    const project = store.createProject(payload).project;
+    const issue = store.createIssue(project.id, {
+      summary: payload,
+      description: payload,
+      issueType: "Task",
+      priority: "Medium",
+      labels: [payload],
+      acceptanceCriteria: [payload],
+    }).issue;
+
+    assert.equal(store.getIssue(issue.key).summary, payload);
+    assert.deepEqual(store.snapshot().projects, [project]);
+    assert.deepEqual(store.getIssue(issue.key).labels, [payload]);
+    assert.equal(store.getIssue(issue.key).description, payload);
+    assert.deepEqual(store.getIssue(issue.key).acceptanceCriteria, [payload]);
+    assert.throws(() => store.getIssue("' OR 1=1 --"), { status: 404 });
+    assert.deepEqual(store.snapshot().issues, [issue]);
+  } finally {
+    store.close();
+  }
+});
+
+test("creates issues with a validated initial status and preserves the default", () => {
+  const store = createStore(":memory:");
+  try {
+    const project = store.createProject("Alpha").project;
+    const draft = {
+      summary: "Issue",
+      description: "",
+      issueType: "Task",
+      priority: "Medium",
+      labels: [],
+      acceptanceCriteria: [],
+    };
+    assert.equal(
+      store.createIssue(project.id, { ...draft, status: "Done" }).issue.status,
+      "To Do",
+    );
+    for (const status of ["To Do", "In Progress", "Done"]) {
+      assert.equal(
+        store.createIssue(project.id, draft, undefined, status).issue.status,
+        status,
+      );
+    }
+    const before = store.snapshot();
+    for (const invalid of [null, "", "Blocked", 1, {}]) {
+      assert.throws(
+        () => store.createIssue(project.id, draft, undefined, invalid),
+        { status: 400 },
+      );
+      assert.deepEqual(store.snapshot(), before);
+    }
+  } finally {
+    store.close();
+  }
+});
+
+test("saves evidence separately and rejects stale or unsafe edits", () => {
+  const store = createStore(":memory:");
+
+  try {
+    store.resetTestData({ projects: initialProjects, issues: initialIssues });
+    const original = store
+      .snapshot()
+      .issues.find((issue) => issue.key === "DEMO-1001");
+    assert.ok(original);
+    const evidence = {
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          content: [{ type: "text", text: "Tests passed" }],
+        },
+      ],
+    };
+
+    store.updateEvidence(original.key, null, evidence);
+    const saved = store
+      .snapshot()
+      .issues.find((issue) => issue.key === original.key);
+    assert.deepEqual(saved?.evidence, evidence);
+    assert.equal(saved?.description, original.description);
+
+    assert.throws(() => store.updateEvidence(original.key, null, evidence), {
+      status: 409,
+    });
+    assert.throws(
+      () =>
+        store.updateEvidence(original.key, evidence, {
+          type: "doc",
+          content: [
+            {
+              type: "image",
+              attrs: { src: "https://example.com/image.png", alt: "Image" },
+            },
+          ],
+        }),
+      { status: 400 },
+    );
+    assert.throws(() => store.updateEvidence("MISSING", null, evidence), {
+      status: 404,
+    });
+
+    store.updateIssue(original.key, { ...original, status: "Done" });
+    assert.deepEqual(
+      store.snapshot().issues.find((issue) => issue.key === original.key)
+        ?.evidence,
+      evidence,
+    );
+  } finally {
+    store.close();
+  }
+});
+
+test("completes only issues currently In Progress", () => {
+  const store = createStore(":memory:");
+
+  try {
+    store.resetTestData({ projects: initialProjects, issues: initialIssues });
+    assert.throws(() => store.completeIssue("DEMO-1002"), { status: 409 });
+    assert.throws(() => store.completeIssue("DEMO-1003"), { status: 409 });
+    assert.throws(() => store.completeIssue("MISSING"), { status: 404 });
+    store.completeIssue("DEMO-1001");
+    assert.equal(
+      store.snapshot().issues.find((issue) => issue.key === "DEMO-1001")
+        ?.status,
+      "Done",
+    );
+    assert.throws(() => store.completeIssue("DEMO-1001"), { status: 409 });
+  } finally {
+    store.close();
+  }
+});
 
 test("a new empty database stays empty after reopening", () => {
   const directory = mkdtempSync(join(tmpdir(), "jira-simulator-test-"));
@@ -89,6 +227,13 @@ test("persists projects, issues and their relationships across restarts", () => 
       key: "BETA-1001",
       status: "Done",
     });
+    const evidence = {
+      type: "doc",
+      content: [
+        { type: "paragraph", content: [{ type: "text", text: "Verified" }] },
+      ],
+    };
+    store.updateEvidence("BETA-1001", null, evidence);
     store.close();
     store = createStore(path);
 
@@ -101,6 +246,10 @@ test("persists projects, issues and their relationships across restarts", () => 
     assert.equal(
       state.issues.find((item) => item.key === "BETA-1001")?.status,
       "Done",
+    );
+    assert.deepEqual(
+      state.issues.find((item) => item.key === "BETA-1001")?.evidence,
+      evidence,
     );
     assert.equal(
       state.issues.find((item) => item.key === "BETA-1002")?.parentIssueKey,

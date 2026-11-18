@@ -12,7 +12,8 @@ import { ProjectDialog } from "./components/projects/ProjectDialog";
 import { ProjectSidebar } from "./components/projects/ProjectSidebar";
 import { DeleteDialog } from "./components/common/DeleteDialog";
 import { projectIssuePrefix } from "./utils/projectIssuePrefix";
-import { request, type Snapshot } from "./api";
+import { request, validateSnapshot, type Snapshot } from "./utils/api";
+import type { EvidenceDocument } from "./utils/evidence";
 import {
   issueStatuses,
   type IssueStatus,
@@ -43,6 +44,12 @@ type DeleteState =
   | { kind: "issue"; issue: Issue; subtaskKeys: string[] }
   | null;
 
+function withoutEvidence(issue: Issue): Issue {
+  const copy = { ...issue };
+  delete copy.evidence;
+  return copy;
+}
+
 function App() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [issues, setIssues] = useState<Issue[]>([]);
@@ -70,7 +77,8 @@ function App() {
     useState<MakeSubtaskState>(null);
   const [makeStandaloneDialog, setMakeStandaloneDialog] =
     useState<MakeStandaloneState>(null);
-  const [isCreateIssueOpen, setIsCreateIssueOpen] = useState(false);
+  const [createIssueStatus, setCreateIssueStatus] =
+    useState<IssueStatus | null>(null);
   const [subtaskParentIssue, setSubtaskParentIssue] = useState<Issue | null>(
     null,
   );
@@ -91,6 +99,7 @@ function App() {
     setError("");
     try {
       const data = await request<Snapshot>("state");
+      validateSnapshot(data);
       setProjects(data.projects);
       setIssues(data.issues);
       setSelectedProjectId((current) => current || data.projects[0]?.id || "");
@@ -145,6 +154,15 @@ function App() {
     setError("");
     try {
       const result = await request<T>(path, data);
+      validateSnapshot(
+        result,
+        true,
+        path === "projects/create"
+          ? "project"
+          : path === "issues/create"
+            ? "issue"
+            : undefined,
+      );
       onSuccess?.(result);
       setProjects(result.projects);
       setIssues(result.issues);
@@ -253,7 +271,7 @@ function App() {
       if (
         event.key.toLowerCase() === "k" &&
         (event.metaKey || event.ctrlKey) &&
-        !isCreateIssueOpen &&
+        !createIssueStatus &&
         !selectedIssue &&
         !projectDialog &&
         !subtaskParentIssue &&
@@ -269,7 +287,7 @@ function App() {
     window.addEventListener("keydown", handleShortcut);
     return () => window.removeEventListener("keydown", handleShortcut);
   }, [
-    isCreateIssueOpen,
+    createIssueStatus,
     projectDialog,
     selectedIssue,
     subtaskParentIssue,
@@ -385,7 +403,11 @@ function App() {
     setProjectDialog(null);
   }
 
-  async function addIssue(draft: IssueDraft, parentIssueKey?: string) {
+  async function addIssue(
+    draft: IssueDraft,
+    parentIssueKey?: string,
+    status?: IssueStatus,
+  ) {
     if (!selectedProject) {
       throw new Error("Cannot create an issue without a selected project.");
     }
@@ -394,6 +416,7 @@ function App() {
       projectId: selectedProject.id,
       draft,
       parentIssueKey,
+      status,
     });
     if (!result) return undefined;
     setStatusFilter("All");
@@ -401,10 +424,10 @@ function App() {
     return result.issue;
   }
 
-  async function createIssue(draft: IssueDraft) {
-    const newIssue = await addIssue(draft);
+  async function createIssue(draft: IssueDraft, status: IssueStatus) {
+    const newIssue = await addIssue(draft, undefined, status);
     if (!newIssue) return;
-    setIsCreateIssueOpen(false);
+    setCreateIssueStatus(null);
     openIssue(newIssue);
   }
 
@@ -456,7 +479,7 @@ function App() {
       );
     }
     const result = await mutate<Snapshot>("issues/update", {
-      issue: updatedIssue,
+      issue: withoutEvidence(updatedIssue),
     });
     if (!result) return false;
     if (currentIssue.status !== updatedIssue.status) {
@@ -464,7 +487,26 @@ function App() {
         `Issue ${updatedIssue.key} moved to ${updatedIssue.status}.`,
       );
     }
-    setSelectedIssue(updatedIssue);
+    const savedIssue = result.issues.find(
+      (issue) => issue.key === updatedIssue.key,
+    );
+    if (!savedIssue)
+      throw new Error("Updated issue missing from API response.");
+    setSelectedIssue(savedIssue);
+    return true;
+  }
+
+  async function saveEvidence(issue: Issue, evidence: EvidenceDocument) {
+    const result = await mutate<Snapshot>("issues/evidence", {
+      key: issue.key,
+      expected: issue.evidence ?? null,
+      evidence,
+    });
+    if (!result) return false;
+    const updated = result.issues.find((item) => item.key === issue.key);
+    if (!updated) throw new Error("Updated issue missing from API response.");
+    setSelectedIssue(updated);
+    setStatusAnnouncement(`Evidence saved for ${issue.key}.`);
     return true;
   }
 
@@ -479,7 +521,7 @@ function App() {
     }
     if (movedIssue.status === status) return;
     const result = await mutate<Snapshot>("issues/update", {
-      issue: { ...movedIssue, status },
+      issue: withoutEvidence({ ...movedIssue, status }),
     });
     if (result) {
       setStatusAnnouncement(`Issue ${issueKey} moved to ${status}.`);
@@ -700,7 +742,7 @@ function App() {
         !editingIssue &&
         !makeSubtaskDialog &&
         !makeStandaloneDialog &&
-        !isCreateIssueOpen &&
+        !createIssueStatus &&
         !subtaskParentIssue &&
         !projectDialog &&
         !deleteDialog && (
@@ -748,7 +790,7 @@ function App() {
               <button
                 className="primary-button"
                 type="button"
-                onClick={() => setIsCreateIssueOpen(true)}
+                onClick={() => setCreateIssueStatus("To Do")}
               >
                 <CirclePlus size={17} />
                 Create issue
@@ -788,7 +830,7 @@ function App() {
                     });
                   }}
                   onOpenIssue={openIssue}
-                  onCreateIssue={() => setIsCreateIssueOpen(true)}
+                  onCreateIssue={setCreateIssueStatus}
                   onMoveIssue={moveIssue}
                   onMakeSubtask={(issueKey, parentKey) =>
                     startMakeSubtask(issueKey, parentKey)
@@ -863,6 +905,7 @@ function App() {
               onClose={() => setSelectedIssue(null)}
               onUpdate={updateIssue}
               onEdit={setEditingIssue}
+              onSaveEvidence={saveEvidence}
               onDelete={(issue) => {
                 setFocusEditAction(false);
                 setFocusSubtaskAction(false);
@@ -917,12 +960,13 @@ function App() {
           />
         )}
 
-        {isCreateIssueOpen && (
+        {createIssueStatus && (
           <IssueDialog
             project={selectedProject}
+            initialStatus={createIssueStatus}
             requestError={error}
-            onSave={createIssue}
-            onClose={() => setIsCreateIssueOpen(false)}
+            onSave={(draft) => createIssue(draft, createIssueStatus)}
+            onClose={() => setCreateIssueStatus(null)}
           />
         )}
 

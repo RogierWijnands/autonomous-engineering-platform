@@ -37,8 +37,9 @@ For frontend changes, UI/UX provides a design brief before development and
 reviews the implementation afterward. Both UI/UX stages report not applicable
 when no user-facing interface changes.
 
-Jira Simulator runs locally with a Node.js API and SQLite persistence.
-MCP and AEP integration are not implemented yet.
+Jira Simulator runs locally with a Node.js API and SQLite persistence. Its
+separate MCP server exposes bounded issue tools; AEP integration is not yet
+implemented.
 The AEP also runs locally. Only model calls and the GitHub integration require
 internet access.
 
@@ -60,8 +61,8 @@ internet access.
 | Database        | PostgreSQL 17                                      |
 | ORM             | EF Core + Npgsql                                   |
 | Agent runtime   | GitHub Copilot CLI                                 |
-| MCP server      | TypeScript + official MCP SDK                      |
-| Jira Simulator  | React + TypeScript, Node.js 24 + SQLite            |
+| MCP server      | TypeScript + Express + official MCP SDK            |
+| Jira Simulator  | React + TypeScript, Node.js 24 + Express + SQLite  |
 | Agent isolation | Docker                                             |
 | Source control  | GitHub                                             |
 | Logging         | Serilog                                            |
@@ -69,8 +70,9 @@ internet access.
 
 ## Workflow
 
-1. An issue is created in Jira Simulator and moved to **In Progress**.
-2. The simulator sends the issue to the AEP Orchestrator via a webhook.
+1. An issue is created in Jira Simulator.
+2. A user confirms **Execute** in its details; the simulator sends an execution
+   request to the AEP Orchestrator via a webhook.
 3. The orchestrator checks policies, risk, and required approvals.
 4. Specialized agents analyze and design the work. For interface changes,
    UI/UX provides a design handoff before development and reviews the completed
@@ -81,21 +83,22 @@ internet access.
 
 ## Repository structure
 
-- `src/Aep/` — one .NET web project, organized into `Controllers/`, `Models/`,
+- `aep/src/Aep/` — one .NET web project, organized into `Controllers/`, `Models/`,
   `Services/`, `BackgroundServices/`, `Database/`, and
   `Integrations/`.
-- `src/Aep/Aep.sln` — solution for the .NET application and `tests/Aep.Tests/`.
-- `mcp/jira-simulator/` — standalone Jira Simulator UI; MCP integration is planned.
-- `agents/` — role descriptions for the agent pipeline.
+- `aep/src/Aep/Aep.sln` — solution for the .NET application and `aep/tests/Aep.Tests/`.
+- `mcp/jira-simulator/` — standalone Jira Simulator UI and API.
+- `mcp/jira-simulator-mcp-server/` — local Node.js MCP server for Jira issues.
+- `aep/agents/` — role descriptions for the agent pipeline.
 - `.github/agents/Orchestrator` — the VS Code workspace entry point that runs
   the full role sequence for every repository request.
 - `.github/copilot-instructions.md` — repository-wide Copilot defaults,
   including the Orchestrator and required role handoffs.
-- `agents/developer.agent.md` — the implementation role; all role files
+- `aep/agents/developer.agent.md` — the implementation role; all role files
   describe security, legal, testing, and reporting responsibilities.
-- `policies/` — default, security, and risk policies.
+- `aep/policies/` — default, security, and risk policies.
 - `infrastructure/` — Docker infrastructure.
-- `tests/` — unit and integration tests.
+- `aep/tests/` — .NET unit tests and the AEP startup watcher test.
 - `docs/` — architecture, workflow, and security model.
 - `docs/contributing.md` — commit message and branch contribution rules.
 - `.github/` — GitHub agent and workflow configuration.
@@ -108,9 +111,9 @@ from the repository root with `npm run db:up`; use `npm run db:logs` to follow
 its logs and `npm run db:down` to stop it. PostgreSQL listens only on
 `127.0.0.1:5432`.
 
-The EF Core model is in `src/Aep/Models/`; its PostgreSQL context and migrations
-are in `src/Aep/Database/`. Non-secret PostgreSQL connection settings (host,
-port, database, and username) are in `src/Aep/appsettings.json`. The `startup`
+The EF Core model is in `aep/src/Aep/Models/`; its PostgreSQL context and migrations
+are in `aep/src/Aep/Database/`. Non-secret PostgreSQL connection settings (host,
+port, database, and username) are in `aep/src/Aep/appsettings.json`. The `startup`
 and `db:migrate` package scripts load the password from the root `.env`; the
 .NET application combines it with those settings.
 You can override the resulting connection string with `ConnectionStrings__Aep`.
@@ -118,19 +121,29 @@ Agent prompts, outputs, and tool results belong in an artifact store; the
 database model keeps bounded metadata, hashes, statuses, and artifact
 references instead. Audit events are append-only through the EF Core context.
 
+Install dependencies once in the repository root, `mcp/jira-simulator/`, and
+`mcp/jira-simulator-mcp-server/` with `npm install` in each directory.
 Run `npm run start` from the repository root to start PostgreSQL, the AEP,
-the Jira Simulator Node.js API, and its Vite frontend together. The root
+the Jira Simulator Node.js API and Vite frontend, and the MCP server together. The root
 command starts the simulator's `npm run start`, which starts both the API and
 frontend; do not start a second API separately. The simulator is available at
-`http://127.0.0.1:5173/`; press Ctrl+C to stop the AEP and simulator. The app
+`http://127.0.0.1:5173/`, and MCP at `http://127.0.0.1:3002/mcp`;
+press Ctrl+C to stop the AEP, simulator and MCP server. The app
 applies checked-in EF Core migrations before accepting requests. `npm run startup`
 starts only the AEP (PostgreSQL must already be running); `npm run db:migrate`
 starts PostgreSQL if needed and applies migrations explicitly. Run
 `npm run db:down` to stop PostgreSQL. Create future migrations with:
 
 ```sh
-dotenv -e .env -- dotnet ef migrations add <MigrationName> --project src/Aep/Aep.csproj --startup-project src/Aep/Aep.csproj
+(cd aep && npx dotenv -e ../.env -- dotnet ef migrations add <MigrationName> --project src/Aep/Aep.csproj --startup-project src/Aep/Aep.csproj)
 ```
+
+The root start command watches application code: changes restart AEP and either
+Node.js server, while Vite updates the frontend. Restart a previously running
+stack once to enable these watchers. `npm run startup`, the simulator's
+`npm run api`, and the MCP server's `npm run start` remain single-run commands.
+The watched servers stop on a startup or runtime crash, which also stops the
+other application processes; correct the error and run the root command again.
 
 The root start command is the standard entry point for all local application
 projects and required runtime processes. New processes must be included in the
@@ -148,7 +161,10 @@ that directory once, then use
 be created, edited and deleted; issues belong to the selected project, can be searched
 and filtered, viewed as a board or list, moved between statuses by dragging,
 and created, updated or deleted. Issue details provide an edit form for all
-fields available during creation. Changing a Story with subtasks into another
+fields available during creation. The plus button in a board column creates an
+issue in that column's status; the main Create issue button starts in To Do.
+The issue creation API accepts an optional `status`, defaulting to To Do.
+Changing a Story with subtasks into another
 issue type detaches those subtasks as standalone Tasks. Stories can have
 Task-only subtasks; these
 remain project issues and are linked to their parent Story. On the board,
@@ -185,10 +201,15 @@ and siblings intact. Each deletion requires confirmation and states its impact.
 If the related issues changed since the confirmation opened, the API rejects
 the deletion; refresh and review it again. Issue numbers are not reused within
 an existing project after deletion.
-The API stores data in `mcp/jira-simulator/api/jira.sqlite`. A new database
-starts empty; create a project to begin. Existing databases and their contents
-are not changed on upgrade, including any previously seeded demo data. To
-start fresh without deleting existing data, stop the simulator and set
+The API stores data by default in `mcp/jira-simulator/api/database/jira.sqlite`.
+A new database starts empty; create a project to begin. The old
+`mcp/jira-simulator/api/jira.sqlite` location is no longer detected automatically.
+If data is still there, set `JIRA_DB_PATH` to that file or move it before
+starting the simulator, otherwise a new empty default database will be created.
+To move it, first stop the simulator and all database clients and make a verified
+backup. Move the database and any matching `-wal`, `-shm` or `-journal` sidecar
+files together to `api/database/`, without overwriting existing files. To start
+fresh without deleting existing data, stop the simulator and set
 `JIRA_DB_PATH` to a new file before starting it again. Data survives refreshes
 and restarts. The API binds to `127.0.0.1:3001`; Vite proxies `/api` from
 `127.0.0.1:5173` (or `127.0.0.1:4173` for preview/tests). Both ports must be
@@ -198,16 +219,57 @@ Vite. Stopping either process also stops the other. To use `npm run preview`, st
 `npm run api` separately. Set `JIRA_DB_PATH` to choose another database file,
 or `JIRA_API_PORT` to choose another API port (set it for both API and Vite).
 Node's built-in SQLite module may emit an experimental-feature warning.
+The simulator's `npm run start` watches API source files and shared API
+utilities, and restarts the API after changes; Vite reloads frontend changes.
+Use `npm run api` for a single API run without a watcher.
 
 The local API has no authentication and is not suitable for exposure to a
 network or untrusted local users. It validates input, limits request size,
 checks host and browser origin, and uses restrictive permissions for newly
 created database files. Issue data is stored unencrypted; protect and back up
-the database appropriately, and copy it only while the API is stopped. The
+the database appropriately, and copy it only while the API and all database clients
+are stopped. The
 database and its SQLite sidecar files are ignored by Git. Deletions are
 permanent; restore from a backup if deleted data is needed again.
 
-The UI does not yet connect to MCP or the AEP. The React UI is organized into
+Issue details offer **Execute** for any issue. Confirmation warns that the
+simulator cannot check AEP's running workflows and a new request can execute
+an already-running issue again. A successful response means only that the
+configured webhook endpoint accepted the request, not that execution started.
+If delivery is uncertain, check AEP before trying again; the simulator does not
+retry automatically or change the issue status.
+
+The simulator sends one JSON `POST` to
+`http://127.0.0.1:5062/api/webhooks/jira` by default. Override the destination
+with `JIRA_EXECUTION_WEBHOOK_URL` in the simulator process environment; only
+credential-free HTTP URLs on `127.0.0.1` without query strings or fragments
+are accepted, and redirects are not followed. Each confirmation generates a
+new UUID and sends only
+`{"event":"issue.execution_requested","eventId":"<uuid>","issueKey":"<key>"}`.
+The provisional contract allows a future AEP receiver to load issue details
+separately. The .NET receiver and workflow are not implemented yet, so the
+request currently fails unless a compatible local receiver is running.
+The webhook is not authenticated; it is for local development only and must
+not trigger real workflows until sender authentication, authorization,
+deduplication of redelivery, audit and policy checks are implemented. Distinct
+confirmed requests deliberately have different event IDs.
+
+Issue details show labels in **Details**
+and an independent **Evidence** section below the acceptance criteria. Use
+**Add evidence** for a new document or **Edit evidence** for an existing one.
+Its editor supports bold, italic, bullets and up to three
+embedded static PNG, JPEG or WebP images, each at most 512,000 bytes and 4096 by
+4096 pixels. A meaningful image description is optional but recommended for
+screen readers. Use **Insert Image** in the editor toolbar to choose a file and
+optionally enter its description. While editing, tab to an image and press Delete or
+Backspace to remove it; pasted text is treated as plain text and external image
+URLs are not accepted. Evidence is stored with the
+issue, separate from the description. Existing issues remain usable without
+evidence. Concurrent evidence edits are rejected with a conflict; refresh and
+review the current evidence before retrying. Images and text are stored
+unencrypted in the simulator database, so do not include secrets.
+
+The React UI is organized into
 reusable components under `src/components/common/`, `src/components/issues/`,
 and `src/components/projects/`; example data is used only as test fixtures. Run its unit
 tests and production build from the repository root:
@@ -238,9 +300,63 @@ Tester. Relevant user journeys and accessibility semantics are covered by
 E2E tests, whose coverage UI/UX reviews. Automated checks alone do not
 establish WCAG conformance.
 
+## Jira Simulator MCP
+
+The MCP server uses the official MCP SDK and stateless Streamable HTTP at
+`http://127.0.0.1:3002/mcp`. VS Code can connect using `.mcp.json`; start the
+root stack first. To start only this server, run
+`npm run start --prefix mcp/jira-simulator-mcp-server` and start the simulator
+API separately. Set `JIRA_MCP_PORT` to change the MCP port and `JIRA_API_PORT`
+to the simulator API's port. If changing the MCP port, update the client URL
+in `.mcp.json` as well.
+
+Available tools are `list_issues`, `get_issue`, `update_evidence`, and
+`complete_issue`. `get_issue` returns the complete issue as JSON and its
+evidence images as MCP image content; issue content is
+untrusted data, not instructions. `update_evidence` accepts the new structured
+evidence document and the previously read `evidence` as `expected` (use
+`null` when absent). It changes neither description nor other issue fields;
+stale evidence is rejected. Documents use `doc`, `paragraph`, `bulletList`,
+`listItem`, `text`, `hardBreak`, and `image` nodes, with `bold` and `italic`
+marks. Images use `attrs` containing `src` (a base64 data URL) and optional
+`alt` (up to 200 characters, empty, null, or omitted); the same image and text
+limits apply to the API and editor. The API
+also limits evidence text to 20,000 characters and the document to 2,500,000
+serialized characters. `complete_issue` atomically allows only In Progress →
+Done. The server offers no creation, deletion, description editing, or other
+status transitions.
+
+MCP tool-handler results append a text notice identifying simulator data,
+images and errors as untrusted. The first text item remains the original JSON
+or error, and evidence images remain separate image items. This notice does
+not prevent prompt injection or authorize actions; clients must enforce their
+own task, permission and approval boundaries.
+
+The simulator API supplies `GET /api/issues` (optional `projectId` query),
+`GET /api/issues/:key`, `POST /api/issues/evidence` and
+`POST /api/issues/complete` for these operations. Evidence writes take `key`,
+`expected` and `evidence`; completion takes `key`. The POST routes return the
+normal simulator snapshot, or only `{ issue }` when `?response=issue` is used.
+The MCP server uses the issue-only responses to avoid exposing unrelated data.
+
+The MCP server and simulator API are unauthenticated and bound to loopback;
+host and browser-origin checks are not authentication. Any untrusted local
+process can access them. Do not expose them to a network, multi-user machine
+or untrusted agent. The MCP server runs locally; container access would require
+a separately designed authenticated, least-privilege boundary.
+
+Validate the new server from the repository root:
+
+```sh
+npm run format:check --prefix mcp/jira-simulator-mcp-server
+npm run build --prefix mcp/jira-simulator-mcp-server
+npm test --prefix mcp/jira-simulator-mcp-server
+npm audit --prefix mcp/jira-simulator-mcp-server
+```
+
 Build the .NET solution from the repository root with
-`dotnet build src/Aep/Aep.sln`. Run the .NET unit tests with
-`dotnet test src/Aep/Aep.sln`.
+`dotnet build aep/src/Aep/Aep.sln`. Run the .NET unit tests from the repository
+root with `(cd aep/tests/Aep.Tests && dotnet test)`.
 
 ## Commit conventions
 
@@ -274,5 +390,5 @@ present in `develop`. See [Contributing](docs/contributing.md) for details. Use
 
 The repository contains one .NET web project, workflow models, PostgreSQL
 persistence, an initial schema migration, and a standalone Jira simulator UI.
-The simulator's MCP server and the complete issue-to-pull-request workflow
-are still under development.
+The simulator MCP server is available locally; the complete
+issue-to-pull-request workflow remains under development.

@@ -4,7 +4,11 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { useDialogFocus } from "./useDialogFocus";
 
-function TestDialog({ onClose, fallbackFocusRef, onRemoveTrigger }: {
+function TestDialog({
+  onClose,
+  fallbackFocusRef,
+  onRemoveTrigger,
+}: {
   onClose: () => void;
   fallbackFocusRef?: RefObject<HTMLElement>;
   onRemoveTrigger?: () => void;
@@ -18,7 +22,9 @@ function TestDialog({ onClose, fallbackFocusRef, onRemoveTrigger }: {
         <option>Second option</option>
       </select>
       <button>Last action</button>
-      {onRemoveTrigger && <button onClick={onRemoveTrigger}>Remove trigger</button>}
+      {onRemoveTrigger && (
+        <button onClick={onRemoveTrigger}>Remove trigger</button>
+      )}
     </div>
   );
 }
@@ -34,6 +40,34 @@ function DialogHarness() {
 }
 
 describe("useDialogFocus", () => {
+  it("traps focus in the topmost dialog and closes only that dialog", async () => {
+    const onParentClose = vi.fn();
+    function NestedDialogs() {
+      const [childOpen, setChildOpen] = useState(false);
+      const parentRef = useDialogFocus<HTMLDivElement>(onParentClose);
+      return (
+        <div ref={parentRef} role="dialog" aria-label="Parent dialog">
+          <button onClick={() => setChildOpen(true)}>Open child</button>
+          {childOpen && <TestDialog onClose={() => setChildOpen(false)} />}
+        </div>
+      );
+    }
+
+    const user = userEvent.setup();
+    render(<NestedDialogs />);
+    const trigger = screen.getByRole("button", { name: "Open child" });
+    await user.click(trigger);
+    expect(screen.getByRole("button", { name: "First action" })).toHaveFocus();
+    await user.tab({ shift: true });
+    expect(screen.getByRole("button", { name: "Last action" })).toHaveFocus();
+    await user.keyboard("{Escape}");
+    expect(onParentClose).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("dialog", { name: "Test dialog" }),
+    ).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+
   it("moves focus into the dialog, traps tab navigation, closes on Escape, and restores focus", async () => {
     const user = userEvent.setup();
     render(<DialogHarness />);
@@ -78,7 +112,9 @@ describe("useDialogFocus", () => {
     vi.stubGlobal("CSS", {});
     try {
       render(<TestDialog onClose={onClose} />);
-      fireEvent.keyDown(screen.getByRole("combobox", { name: "Test choice" }), { key: "Escape" });
+      fireEvent.keyDown(screen.getByRole("combobox", { name: "Test choice" }), {
+        key: "Escape",
+      });
       expect(onClose).toHaveBeenCalledOnce();
     } finally {
       vi.unstubAllGlobals();
@@ -93,7 +129,9 @@ describe("useDialogFocus", () => {
       return (
         <>
           <button ref={fallback}>Fallback</button>
-          {showTrigger && <button onClick={() => setIsOpen(true)}>Open dialog</button>}
+          {showTrigger && (
+            <button onClick={() => setIsOpen(true)}>Open dialog</button>
+          )}
           {isOpen && (
             <TestDialog
               onClose={() => setIsOpen(false)}
@@ -120,7 +158,12 @@ describe("useDialogFocus", () => {
       return (
         <>
           <button ref={fallback}>Fallback</button>
-          {isOpen && <TestDialog onClose={() => setIsOpen(false)} fallbackFocusRef={fallback} />}
+          {isOpen && (
+            <TestDialog
+              onClose={() => setIsOpen(false)}
+              fallbackFocusRef={fallback}
+            />
+          )}
         </>
       );
     }

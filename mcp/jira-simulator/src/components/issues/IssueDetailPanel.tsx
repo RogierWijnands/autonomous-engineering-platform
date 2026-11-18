@@ -1,10 +1,25 @@
 import { ChevronDown, Check, CirclePlus, Pencil, X } from "lucide-react";
-import { useLayoutEffect, useRef, type RefObject } from "react";
+import {
+  lazy,
+  Suspense,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
 import type { IssueStatus, Issue } from "../../types";
 import { issueStatuses } from "../../types";
 import { IssueTypeIcon } from "../common/IssueTypeIcon";
 import { PriorityIcon } from "../common/PriorityIcon";
 import { useDialogFocus } from "../common/useDialogFocus";
+import type { EvidenceDocument } from "../../utils/evidence";
+import { ExecuteIssueDialog } from "./ExecuteIssueDialog";
+
+const EvidenceSection = lazy(() =>
+  import("./EvidenceSection").then((module) => ({
+    default: module.EvidenceSection,
+  })),
+);
 
 interface IssueDetailPanelProps {
   issue: Issue;
@@ -21,6 +36,10 @@ interface IssueDetailPanelProps {
   onClose: () => void;
   onUpdate: (issue: Issue) => void;
   onEdit: (issue: Issue) => void;
+  onSaveEvidence: (
+    issue: Issue,
+    evidence: EvidenceDocument,
+  ) => Promise<boolean>;
   onDelete?: (issue: Issue) => void;
   onMakeSubtask: (issue: Issue) => void;
   onMakeStandalone: (issue: Issue) => void;
@@ -43,6 +62,7 @@ export function IssueDetailPanel({
   onClose,
   onUpdate,
   onEdit,
+  onSaveEvidence,
   onDelete,
   onMakeSubtask,
   onMakeStandalone,
@@ -52,6 +72,8 @@ export function IssueDetailPanel({
   const dialogRef = useDialogFocus<HTMLElement>(onClose, fallbackFocusRef);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const wasSubtask = useRef(Boolean(issue.parentIssueKey));
+  const executeButton = useRef<HTMLButtonElement>(null);
+  const [executeOpen, setExecuteOpen] = useState(false);
 
   useLayoutEffect(() => {
     if (wasSubtask.current && !issue.parentIssueKey)
@@ -142,6 +164,14 @@ export function IssueDetailPanel({
             </div>
           )}
           <div className="detail-actions">
+            <button
+              ref={executeButton}
+              type="button"
+              className="primary-button"
+              onClick={() => setExecuteOpen(true)}
+            >
+              Execute
+            </button>
             <button
               type="button"
               className="secondary-button"
@@ -237,20 +267,12 @@ export function IssueDetailPanel({
               <p className="detail-muted">No acceptance criteria added.</p>
             )}
           </div>
-          <div className="detail-section">
-            <h3>Labels</h3>
-            <div className="detail-labels">
-              {issue.labels.length > 0 ? (
-                issue.labels.map((label) => (
-                  <span className="issue-label" key={label}>
-                    {label}
-                  </span>
-                ))
-              ) : (
-                <span className="detail-muted">No labels</span>
-              )}
-            </div>
-          </div>
+          <Suspense fallback={<p role="status">Loading evidence...</p>}>
+            <EvidenceSection
+              evidence={issue.evidence}
+              onSave={(evidence) => onSaveEvidence(issue, evidence)}
+            />
+          </Suspense>
           {issue.issueType === "Story" && (
             <section
               className="detail-section subtasks-section"
@@ -294,8 +316,11 @@ export function IssueDetailPanel({
               )}
             </section>
           )}
-          <div className="detail-section properties-section">
-            <h3>Details</h3>
+          <section
+            className="detail-section properties-section"
+            aria-labelledby="issue-details-heading"
+          >
+            <h3 id="issue-details-heading">Details</h3>
             <div className="detail-property">
               <span>Issue type</span>
               <strong>
@@ -310,9 +335,31 @@ export function IssueDetailPanel({
                 {issue.priority}
               </strong>
             </div>
-          </div>
+            <div className="detail-property">
+              <span>Labels</span>
+              {issue.labels.length > 0 ? (
+                // Safari may omit list semantics when list markers are hidden.
+                <ul className="detail-labels" role="list" aria-label="Labels">
+                  {issue.labels.map((label) => (
+                    <li className="issue-label" role="listitem" key={label}>
+                      {label}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <span className="detail-labels detail-muted">No labels</span>
+              )}
+            </div>
+          </section>
         </div>
       </aside>
+      {executeOpen && (
+        <ExecuteIssueDialog
+          issueKey={issue.key}
+          triggerRef={executeButton}
+          onClose={() => setExecuteOpen(false)}
+        />
+      )}
     </div>
   );
 }

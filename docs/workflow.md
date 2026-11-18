@@ -3,15 +3,15 @@
 ## Status
 
 This document describes the intended end-to-end flow. The host, initial
-database model, schema migration, and a standalone simulator UI are in place.
-The UI currently uses in-memory sample issues; the MCP server, persistence,
-webhook, workflow state machine, isolated agent execution, and GitHub
-integration are not yet implemented.
+database model, schema migration, persistent simulator UI and API, and local
+issue MCP server are in place. The simulator sends confirmed local execution
+webhooks, but the AEP receiver, workflow state machine, isolated agent
+execution, and GitHub integration are not yet implemented.
 
 ## Overview
 
 ```text
-Issue created and moved to In Progress
+Issue created; user confirms Execute
         ↓ webhook
 Receive, validate, and deduplicate
         ↓
@@ -30,11 +30,13 @@ Feature branch → draft PR → human review
 
 ### 1. Receive issue
 
-Jira Simulator will manage local issues and expose them through
-MCP. When a relevant status transition occurs, it will send a webhook to the
-AEP API. The API should authenticate the sender, validate the payload, and
+Jira Simulator manages local issues and exposes read, evidence-update and
+completion tools through MCP. When a user confirms Execute, it sends a minimal
+webhook to the configured local endpoint. The future AEP API must authenticate
+the sender, validate the payload, and
 create a durable workflow record. Redelivery of the same event should not cause
-an unintended duplicate execution.
+an unintended duplicate execution. A separately confirmed request has a new
+event ID and may start another execution even if one is already running.
 
 ### 2. Establish scope and policy
 
@@ -83,7 +85,7 @@ documentation-only work may not need code changes or unit tests. If
 requirements are materially ambiguous, pause for user clarification. If
 post-implementation UI/UX, testing, or review identifies an implementation
 defect, return the work to Developer and repeat the affected UI/UX, testing,
-and review stages. Instructions are in `agents/` and
+and review stages. Instructions are in `aep/agents/` and
 `.github/agents/orchestrator.agent.md`.
 
 The agent container receives no GitHub token, Docker socket, or access to
@@ -97,10 +99,13 @@ secret values in agent context or handoffs.
 
 ### 5. Quality and policy checks
 
-Tests run in the isolated environment. The reviewer reports findings, and the
-orchestrator checks that all required steps are complete and no policy block
-remains. A failed test or critical finding must not automatically result in a
-PR presented as successful.
+Tests run in the isolated environment. The reviewer checks changed code for
+readability, maintainability, appropriate simplicity, and consistency with
+repository patterns, alongside correctness, security, and test evidence.
+Findings must describe concrete impact; subjective style preferences are not
+actionable findings. The orchestrator checks that all required steps are
+complete and no policy block remains. A failed test or critical finding must
+not automatically result in a PR presented as successful.
 
 ### 6. GitHub publication and human review
 

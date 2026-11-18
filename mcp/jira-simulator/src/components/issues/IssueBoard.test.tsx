@@ -5,8 +5,15 @@ import { describe, expect, it, vi } from "vitest";
 import type { Issue } from "../../types";
 import { IssueBoard as ControlledIssueBoard } from "./IssueBoard";
 
-function IssueBoard(props: Omit<ComponentProps<typeof ControlledIssueBoard>, "expandedStoryKeys" | "onExpandedChange">) {
-  const [expandedStoryKeys, setExpandedStoryKeys] = useState<Set<string>>(() => new Set());
+function IssueBoard(
+  props: Omit<
+    ComponentProps<typeof ControlledIssueBoard>,
+    "expandedStoryKeys" | "onExpandedChange"
+  >,
+) {
+  const [expandedStoryKeys, setExpandedStoryKeys] = useState<Set<string>>(
+    () => new Set(),
+  );
   return (
     <ControlledIssueBoard
       {...props}
@@ -51,6 +58,29 @@ function fireDragEvent(
 }
 
 describe("IssueBoard", () => {
+  it("passes the selected column status when creating an issue", async () => {
+    const user = userEvent.setup();
+    const onCreateIssue = vi.fn();
+    render(
+      <IssueBoard
+        issues={[]}
+        projectIssues={[]}
+        filteredIssues={[]}
+        filterKey={null}
+        onOpenIssue={vi.fn()}
+        onCreateIssue={onCreateIssue}
+        onMoveIssue={vi.fn()}
+        onMakeSubtask={vi.fn()}
+      />,
+    );
+    for (const status of ["To Do", "In Progress", "Done"]) {
+      await user.click(
+        screen.getByRole("button", { name: `Create issue in ${status}` }),
+      );
+      expect(onCreateIssue).toHaveBeenLastCalledWith(status);
+    }
+  });
+
   it("shows only subtasks from the Story's project", async () => {
     const user = userEvent.setup();
     const subtask: Issue = {
@@ -80,10 +110,14 @@ describe("IssueBoard", () => {
         onMakeSubtask={vi.fn()}
       />,
     );
-    await user.click(screen.getByRole("button", { name: "Subtasks for ALPHA-1001" }));
-    await user.click(screen.getByRole("button", {
-      name: "Open subtask ALPHA-1002: Test response (Done)",
-    }));
+    await user.click(
+      screen.getByRole("button", { name: "Subtasks for ALPHA-1001" }),
+    );
+    await user.click(
+      screen.getByRole("button", {
+        name: "Open subtask ALPHA-1002: Test response (Done)",
+      }),
+    );
     expect(onOpenIssue).toHaveBeenCalledWith(subtask);
     expect(screen.queryByText("Other project")).not.toBeInTheDocument();
   });
@@ -93,7 +127,8 @@ describe("IssueBoard", () => {
     const dataTransfer = {
       effectAllowed: "move",
       dropEffect: "none",
-      setData: (format: string, value: string) => storedValues.set(format, value),
+      setData: (format: string, value: string) =>
+        storedValues.set(format, value),
       getData: (format: string) => storedValues.get(format) ?? "",
     };
     const onMoveIssue = vi.fn();
@@ -130,7 +165,8 @@ describe("IssueBoard", () => {
     const dataTransfer = {
       effectAllowed: "move",
       dropEffect: "none",
-      setData: (format: string, value: string) => storedValues.set(format, value),
+      setData: (format: string, value: string) =>
+        storedValues.set(format, value),
       getData: (format: string) => storedValues.get(format) ?? "",
     };
     const onMoveIssue = vi.fn();
@@ -153,8 +189,12 @@ describe("IssueBoard", () => {
     expect(screen.queryByText(/Drop here to move/)).not.toBeInTheDocument();
 
     fireDragEvent("dragstart", source, dataTransfer);
-    expect(within(toDo).queryByText(/Drop here to move/)).not.toBeInTheDocument();
-    expect(screen.getByText("Drop here to move to In Progress")).toHaveAttribute("aria-hidden", "true");
+    expect(
+      within(toDo).queryByText(/Drop here to move/),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Drop here to move to In Progress"),
+    ).toHaveAttribute("aria-hidden", "true");
     const dropArea = within(done).getByText("Drop here to move to Done");
     fireDragEvent("dragover", dropArea, dataTransfer);
     expect(done).toHaveClass("drag-over");
@@ -170,7 +210,11 @@ describe("IssueBoard", () => {
 
     fireDragEvent("dragstart", source, dataTransfer);
     dataTransfer.setData("text/plain", "OTHER-1001");
-    fireDragEvent("drop", screen.getByText("Drop here to move to Done"), dataTransfer);
+    fireDragEvent(
+      "drop",
+      screen.getByText("Drop here to move to Done"),
+      dataTransfer,
+    );
     expect(onMoveIssue).toHaveBeenCalledTimes(1);
     expect(onMakeSubtask).not.toHaveBeenCalled();
     expect(screen.queryByText(/Drop here to move/)).not.toBeInTheDocument();
@@ -208,13 +252,25 @@ describe("IssueBoard", () => {
 
   it("allows a subtask to be dropped in any column or on a different issue", async () => {
     const user = userEvent.setup();
-    const subtask: Issue = { ...issue, key: "ALPHA-1002", issueType: "Task", parentIssueKey: issue.key, status: "Done" };
-    const target: Issue = { ...issue, key: "ALPHA-1003", issueType: "Task", status: "Done" };
+    const subtask: Issue = {
+      ...issue,
+      key: "ALPHA-1002",
+      issueType: "Task",
+      parentIssueKey: issue.key,
+      status: "Done",
+    };
+    const target: Issue = {
+      ...issue,
+      key: "ALPHA-1003",
+      issueType: "Task",
+      status: "Done",
+    };
     const storedValues = new Map<string, string>();
     const dataTransfer = {
       effectAllowed: "move",
       dropEffect: "none",
-      setData: (format: string, value: string) => storedValues.set(format, value),
+      setData: (format: string, value: string) =>
+        storedValues.set(format, value),
       getData: (format: string) => storedValues.get(format) ?? "",
     };
     const onMoveIssue = vi.fn();
@@ -231,11 +287,17 @@ describe("IssueBoard", () => {
         onMakeSubtask={onMakeSubtask}
       />,
     );
-    await user.click(screen.getByRole("button", { name: "Subtasks for ALPHA-1001" }));
-    const source = screen.getByRole("button", { name: /Open subtask ALPHA-1002/ });
+    await user.click(
+      screen.getByRole("button", { name: "Subtasks for ALPHA-1001" }),
+    );
+    const source = screen.getByRole("button", {
+      name: /Open subtask ALPHA-1002/,
+    });
     const targetCard = screen.getByRole("button", { name: /^ALPHA-1003/ });
     fireDragEvent("dragstart", source, dataTransfer);
-    expect(screen.getAllByText(/Drop here to make a standalone task/)).toHaveLength(3);
+    expect(
+      screen.getAllByText(/Drop here to make a standalone task/),
+    ).toHaveLength(3);
     const parentCard = screen.getByRole("button", { name: /^ALPHA-1001/ });
     fireDragEvent("dragover", parentCard, dataTransfer);
     expect(dataTransfer.dropEffect).toBe("none");
@@ -249,35 +311,53 @@ describe("IssueBoard", () => {
     fireDragEvent("drop", targetCard, dataTransfer);
     expect(onMakeSubtask).toHaveBeenCalledWith(subtask.key, target.key);
     expect(onMoveIssue).not.toHaveBeenCalled();
-    expect(screen.queryByText(/Drop here to make a standalone task/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Drop here to make a standalone task/),
+    ).not.toBeInTheDocument();
 
     onMakeSubtask.mockClear();
     fireDragEvent("dragstart", source, dataTransfer);
-    fireDragEvent("drop", screen.getByText("Drop here to make a standalone task in Done"), dataTransfer);
+    fireDragEvent(
+      "drop",
+      screen.getByText("Drop here to make a standalone task in Done"),
+      dataTransfer,
+    );
     expect(onMoveIssue).toHaveBeenCalledWith(subtask.key, "Done");
     expect(onMakeSubtask).not.toHaveBeenCalled();
 
     fireDragEvent("dragstart", source, dataTransfer);
     fireDragEvent("dragend", source, dataTransfer);
-    expect(screen.queryByText(/Drop here to make a standalone task/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Drop here to make a standalone task/),
+    ).not.toBeInTheDocument();
     fireDragEvent("dragstart", source, dataTransfer);
     dataTransfer.setData("text/plain", "OTHER-1001");
     fireDragEvent("drop", targetCard, dataTransfer);
     expect(onMakeSubtask).not.toHaveBeenCalled();
     fireDragEvent("dragstart", source, dataTransfer);
     dataTransfer.setData("text/plain", "OTHER-1001");
-    fireDragEvent("drop", screen.getByText("Drop here to make a standalone task in Done"), dataTransfer);
+    fireDragEvent(
+      "drop",
+      screen.getByText("Drop here to make a standalone task in Done"),
+      dataTransfer,
+    );
     expect(onMoveIssue).toHaveBeenCalledTimes(1);
     expect(onMakeSubtask).not.toHaveBeenCalled();
   });
 
   it("requests confirmation for an internal card drop without moving its status", () => {
-    const target: Issue = { ...issue, key: "ALPHA-1002", issueType: "Task", status: "Done" };
+    const target: Issue = {
+      ...issue,
+      key: "ALPHA-1002",
+      issueType: "Task",
+      status: "Done",
+    };
     const storedValues = new Map<string, string>();
     const dataTransfer = {
       effectAllowed: "move",
       dropEffect: "none",
-      setData: (format: string, value: string) => storedValues.set(format, value),
+      setData: (format: string, value: string) =>
+        storedValues.set(format, value),
       getData: (format: string) => storedValues.get(format) ?? "",
     };
     const onMoveIssue = vi.fn();

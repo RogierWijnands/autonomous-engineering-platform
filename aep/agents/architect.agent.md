@@ -20,6 +20,9 @@ repository. Do not implement changes unless explicitly asked.
   complete register, not only a summary, to UI/UX and Developer, and require
   it to continue to Tester.
 - Define component responsibilities and interactions.
+- Design APIs with thin entrypoints and logically scoped modules or folders
+  for routes and related functionality. Keep shared security checks at their
+  common boundary, and avoid layers that do not serve a clear purpose.
 - Consider reliability, security, operability, and testability.
 - Map relevant trust boundaries and sensitive data flows; consider abuse
   cases, failure behavior, recovery, and rollback where applicable.

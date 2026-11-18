@@ -2,14 +2,15 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
-import { createStore } from "../api/store.ts";
-import { request } from "./api";
+import { createStore } from "../api/database/store.ts";
+import { request } from "./utils/api";
 import type { Issue, IssueDraft, IssueStatus } from "./types";
 import { initialProjects } from "./test/fixtures/projects";
 import { initialIssues } from "./test/fixtures/issues";
 
 let store: ReturnType<typeof createStore>;
-vi.mock("./api", () => ({
+vi.mock("./utils/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./utils/api")>()),
   request: vi.fn(async (path: string, data?: Record<string, unknown>) => {
     switch (path) {
       case "state":
@@ -28,11 +29,14 @@ vi.mock("./api", () => ({
           data?.projectId as string,
           data?.draft as IssueDraft,
           data?.parentIssueKey as string | undefined,
+          data?.status,
         );
       case "issues/update": {
         const issue = data?.issue as Issue;
         return store.updateIssue(issue.key, issue);
       }
+      case "issues/evidence":
+        return store.updateEvidence(data?.key, data?.expected, data?.evidence);
       case "issues/delete":
         return store.deleteIssue(
           data?.key as string,
@@ -60,6 +64,58 @@ beforeEach(() => {
 afterEach(() => store.close());
 
 describe("Jira Simulator", () => {
+  it.each(["To Do", "In Progress", "Done"] as const)(
+    "creates an issue in the %s column",
+    async (status) => {
+      const user = userEvent.setup();
+      render(<App />);
+      await screen.findByRole("heading", { name: "Demo Project" });
+      await user.click(
+        screen.getByRole("button", { name: `Create issue in ${status}` }),
+      );
+      const dialog = screen.getByRole("dialog", { name: "Create an issue" });
+      expect(
+        within(dialog).getByText(`Project: Demo Project · Status: ${status}`),
+      ).toBeInTheDocument();
+      await user.type(
+        within(dialog).getByRole("textbox", { name: /Summary/ }),
+        `New ${status} issue`,
+      );
+      await user.click(
+        within(dialog).getByRole("button", { name: "Create issue" }),
+      );
+      const created = store
+        .snapshot()
+        .issues.find((issue) => issue.summary === `New ${status} issue`);
+      expect(created?.status).toBe(status);
+      expect(
+        screen.getByRole("combobox", { name: "Change issue status" }),
+      ).toHaveValue(status);
+    },
+  );
+
+  it("saves evidence separately from the issue description", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByRole("heading", { name: "Demo Project" });
+    await user.click(screen.getByRole("button", { name: /^DEMO-1001/ }));
+    await user.click(
+      await screen.findByRole("button", { name: "Add evidence" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Save evidence" }));
+    expect(
+      await screen.findByRole("button", { name: "Edit evidence" }),
+    ).toHaveFocus();
+    const issue = store
+      .snapshot()
+      .issues.find((item) => item.key === "DEMO-1001");
+    expect(issue?.evidence).toEqual({
+      type: "doc",
+      content: [{ type: "paragraph" }],
+    });
+    expect(issue?.description).toBe(initialIssues[0].description);
+  });
+
   it("confirms project deletion and returns to an empty state", async () => {
     const user = userEvent.setup();
     render(<App />);

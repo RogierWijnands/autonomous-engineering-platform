@@ -12,11 +12,13 @@ One .NET web project contains the HTTP entry point, initial workflow model,
 PostgreSQL persistence, and schema migration. Jira Simulator has a standalone
 React UI backed by a local TypeScript Node.js API and SQLite database. Projects
 can be created, edited and deleted, and issues can be moved between board statuses;
-Stories can have Task-only subtasks linked to their parent issue. The MCP
-server and AEP integration are not implemented. The
+Stories can have Task-only subtasks linked to their parent issue. A separate
+local MCP server exposes issue reads, evidence updates and completion. The
+simulator can send a user-confirmed execution webhook, but the AEP receiver
+and workflow are not implemented. The
 issue-processing flow and most runtime security controls still need to be
 built and tested.
-The `tests/Aep.Tests/` xUnit project covers PostgreSQL configuration handling
+The `aep/tests/Aep.Tests/` xUnit project covers PostgreSQL configuration handling
 and append-only audit-event safeguards without requiring a running database.
 
 ## Design principles
@@ -31,8 +33,8 @@ and append-only audit-event safeguards without requiring a running database.
   human approval.
 - **Auditability:** important decisions and actions are recorded and linked to
   a workflow and actor.
-- **Local execution:** Jira Simulator, the AEP, and PostgreSQL run locally;
-  the MCP server is planned. Model calls and the GitHub integration require
+- **Local execution:** Jira Simulator, its MCP server, the AEP, and PostgreSQL
+  run locally. Model calls and the GitHub integration require
   internet access.
 
 ## Components and responsibilities
@@ -40,7 +42,8 @@ and append-only audit-event safeguards without requiring a running database.
 | Component        | Responsibility                                                                                                                             |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | `Aep`            | One ASP.NET Core project. Its folders separate HTTP controllers, models, services, background services, database access, and integrations. |
-| Jira Simulator   | React/TypeScript UI and local Node.js API with SQLite projects and issues; MCP and webhook integration are planned.                        |
+| Jira Simulator   | React/TypeScript UI and local Node.js API with SQLite projects, issues and evidence; sends confirmed local execution webhooks.             |
+| Jira MCP server  | Node.js Streamable HTTP MCP adapter for issue reads, evidence updates and In Progress → Done transitions through the simulator API.        |
 | PostgreSQL       | Persistent workflow state, agent runs, approvals, and audit data.                                                                          |
 | Docker workspace | Bounded, temporary working environment for agents and their repository checkout.                                                           |
 
@@ -58,24 +61,46 @@ New databases start empty; existing databases are
 preserved. The browser requests state through Vite's local proxy and
 shows loading and error feedback. The API is local-only and unauthenticated;
 it is not a production or multi-user security boundary.
+Evidence is a validated structured document stored with the issue; existing
+issues without it remain valid. Optimistic evidence checks prevent overwriting
+concurrent edits, while the completion transition is checked atomically.
+The MCP server uses the simulator API rather than accessing SQLite directly.
+It is loopback-only and unauthenticated, not an isolated-container or
+multi-user authorization boundary.
+
+Both local Node.js services use Express for HTTP routing and bounded JSON
+parsing. The simulator API starts in `api/server.ts`, keeps shared request
+checks in `api/app.ts`, groups issue, project and test routers in
+`api/routes/`, database code and the default SQLite file in `api/database/`,
+and Jira issue execution webhook delivery in `api/webhooks/executeJiraIssueWebhook.ts`.
+The MCP server keeps its HTTP transport in `src/server.ts`, its
+simulator client and schemas in `src/jira/`, and its tool registrations in
+`src/tools/`, composed by `src/mcp.ts`. Both services apply their host and
+origin checks before parsing requests or dispatching routes. Express is not
+an authentication or authorization boundary.
 
 ## Main flows
 
 ### Issue to workflow
 
-1. A user creates an issue in Jira Simulator and moves it to
-   **In Progress**.
-2. The simulator sends a webhook to the AEP API. The API validates the request
-   and records or schedules the workflow.
+1. A user creates an issue in Jira Simulator and confirms **Execute** in its
+   details.
+2. The simulator sends a minimal execution-request webhook. The future AEP API
+   must authenticate and validate it, and record or schedule the workflow.
 3. The worker loads the workflow and performs policy and risk checks.
 4. The agent pipeline works in an isolated Docker workspace.
 5. The host processes permitted GitHub actions and creates a feature branch and
    draft PR.
 6. A person reviews the PR and decides whether to merge or take further action.
 
-The exact webhook authentication, retry strategy, idempotency key, and
-transitions must be defined before implementation. Duplicate webhook delivery
-must not result in uncontrolled duplicate workflows.
+Each explicit confirmation currently sends a new event UUID once, with no
+automatic retries; the simulator does not know whether the issue is already
+running. A separate confirmation can intentionally request another execution.
+The sender's provisional local-only contract is documented in the README.
+Authentication and authorization, deduplication of delivery by event ID, and
+workflow transitions must be implemented before real workflows are enabled.
+Repeated delivery of the same event must not cause uncontrolled duplicate
+workflows.
 
 ### Agent pipeline
 
@@ -93,8 +118,8 @@ The default roles are:
    changed.
 6. **Tester** — verifies behavior with focused tests and checks both
    applicable UI/UX handoffs.
-7. **Reviewer** — reviews the change, test evidence, and UI/UX handoffs for
-   defects and regressions.
+7. **Reviewer** — reviews the change, including code quality, test evidence,
+   and UI/UX handoffs, for defects and regressions.
 
 All roles use WCAG 2.2 AA as the engineering target when evaluating or changing
 user-facing interfaces; this is not a claim of legal compliance.
@@ -127,18 +152,19 @@ records.
 
 ## Repository layout
 
-- `src/Aep/` is the single .NET web project. Its folders are organized by
+- `aep/src/Aep/` is the single .NET web project. Its folders are organized by
   responsibility: `Controllers/`, `Models/`, `Services/`, `BackgroundServices/`,
   `Database/`, and `Integrations/`.
-- `src/Aep/Aep.sln` is the entry point for building the application and its
-  `tests/Aep.Tests/` xUnit project.
-- `dotnet-tools.json` pins the local EF Core command-line tool.
-- `mcp/jira-simulator/` contains Jira Simulator; its MCP server is planned.
-- `agents/` contains role descriptions for the agent pipeline.
-- `policies/` contains initial policy configurations; they only take effect
+- `aep/src/Aep/Aep.sln` is the entry point for building the application and its
+  `aep/tests/Aep.Tests/` xUnit project.
+- `aep/dotnet-tools.json` pins the local EF Core command-line tool.
+- `mcp/jira-simulator/` contains Jira Simulator.
+- `mcp/jira-simulator-mcp-server/` contains its local MCP server.
+- `aep/agents/` contains role descriptions for the agent pipeline.
+- `aep/policies/` contains initial policy configurations; they only take effect
   when enforced by the runtime.
 - `infrastructure/` contains the planned Docker configuration.
-- `tests/Aep.Tests/` contains .NET unit tests; future integration tests remain
+- `aep/tests/Aep.Tests/` contains .NET unit tests; future integration tests remain
   to be designed.
 
 ## Open decisions

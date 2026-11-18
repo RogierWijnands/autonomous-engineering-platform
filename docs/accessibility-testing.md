@@ -30,7 +30,12 @@ semantics.
 ## Evidence and limits
 
 UI/UX and Tester should record the browser, operating system, tested flows, and
-results against the Analyst and Architect requirement registers. E2E tests
+results against the Analyst and Architect requirement registers. For applicable
+interface changes, manually test the running interface with a screen reader
+when the environment permits, recording the reader, browser, platform and
+observed output. If this is unavailable, report it as a blocked verification
+gap. Use the Guidepup VoiceOver Playwright suite when available; do not
+disable System Integrity Protection. E2E tests
 should cover relevant accessibility semantics, including names, roles, states,
 and keyboard interaction. Compare the rendered interface with DOM semantics,
 including relationships, reading and focus order, hidden content, and live
