@@ -1,4 +1,4 @@
-import type { Issue } from "../types";
+import type { Issue } from "../../types";
 
 export const initialIssues: Issue[] = [
   {
@@ -137,8 +137,6 @@ export const initialIssues: Issue[] = [
     priority: "Medium",
     status: "Done",
     labels: ["backend", "demo"],
-    acceptanceCriteria: [
-      "The response identifies the overall health status",
-    ],
+    acceptanceCriteria: ["The response identifies the overall health status"],
   },
 ];

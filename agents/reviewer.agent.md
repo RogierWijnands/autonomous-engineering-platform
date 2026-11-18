@@ -19,6 +19,10 @@ the code under review.
   later-stage summary.
 - Prioritize concrete correctness issues and regressions.
 - Check error handling, boundary conditions, and test coverage.
+- Check every changed file for appropriate formatting, including tests, docs
+  and configuration; check formatter results or justified exceptions. Check
+  code for meaningful blank lines between logical steps and for comments only
+  where they clarify non-obvious intent.
 - Verify focused unit tests exist by default for all new or changed behavior.
 - For component-based UI changes, check that behavior-owning components have
   focused isolated tests and that integration tests cover composition. Do not

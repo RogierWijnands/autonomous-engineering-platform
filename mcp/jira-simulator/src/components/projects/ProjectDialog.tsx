@@ -7,6 +7,10 @@ import { useDialogFocus } from "../common/useDialogFocus";
 interface ProjectDialogProps {
   project?: Project;
   projects: Project[];
+  requestError?: string;
+  focusDeleteAction?: boolean;
+  initialName?: string;
+  onDelete?: (draftName: string) => void;
   onSave: (draft: ProjectDraft) => void;
   onClose: () => void;
 }
@@ -14,11 +18,15 @@ interface ProjectDialogProps {
 export function ProjectDialog({
   project,
   projects,
+  requestError,
+  focusDeleteAction = false,
+  initialName,
+  onDelete,
   onSave,
   onClose,
 }: ProjectDialogProps) {
   const dialogRef = useDialogFocus<HTMLFormElement>(onClose);
-  const [name, setName] = useState(project?.name ?? "");
+  const [name, setName] = useState(initialName ?? project?.name ?? "");
   const [error, setError] = useState("");
   const title = project ? "Edit project" : "Create project";
 
@@ -79,6 +87,11 @@ export function ProjectDialog({
         aria-labelledby="project-dialog-title"
         onSubmit={submitProject}
       >
+        {requestError && (
+          <p className="form-error" role="alert">
+            {requestError}
+          </p>
+        )}
         <div className="modal-heading">
           <h2 id="project-dialog-title">{title}</h2>
           <button
@@ -91,9 +104,11 @@ export function ProjectDialog({
           </button>
         </div>
         <label className="form-field">
-          <span>Project name <i aria-hidden="true">*</i></span>
+          <span>
+            Project name <i aria-hidden="true">*</i>
+          </span>
           <input
-            data-dialog-initial-focus
+            data-dialog-initial-focus={!focusDeleteAction || undefined}
             required
             maxLength={80}
             value={name}
@@ -106,9 +121,23 @@ export function ProjectDialog({
             Issue IDs use a prefix derived from the project name.
           </small>
         </label>
-        {error && <p className="form-error" role="alert">{error}</p>}
+        {error && (
+          <p className="form-error" role="alert">
+            {error}
+          </p>
+        )}
         <div className="modal-footer">
           <div className="modal-buttons">
+            {project && onDelete && (
+              <button
+                type="button"
+                className="secondary-button"
+                data-dialog-initial-focus={focusDeleteAction || undefined}
+                onClick={() => onDelete(name)}
+              >
+                Delete project
+              </button>
+            )}
             <button
               type="button"
               className="secondary-button"

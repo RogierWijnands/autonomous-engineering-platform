@@ -14,6 +14,36 @@ tests for a documentation-only change, as not applicable with a reason. The
 role files remain the source of truth; the workspace agent applies them as
 instructions rather than launching separate agents.
 
+## Local startup
+
+The root `npm run start` is the standard way to start all local application
+projects and their required runtime processes and services. Whenever adding
+one, include it in that startup chain in the same change, either directly or
+through an existing child startup script. Avoid duplicate processes, update
+the setup documentation, and verify startup and shutdown. Respect the
+security model and approval boundaries; explicitly report services that cannot
+be started safely rather than silently leaving them out.
+
+## Code readability and formatting
+
+Write clear control flow with descriptive names and blank lines that separate
+logical steps, validation, control flow and returns where helpful.
+Comments should explain non-obvious intent or constraints, not restate code.
+Format every created or changed file, including tests, documentation and
+configuration, using the applicable project or language formatter and run
+its check. For non-text or unsupported files, review the format manually and
+report the exception. Review code for meaningful whitespace separately:
+automatic formatters do not decide where logical steps need separation.
+
+The Jira Simulator uses Prettier for its `.ts` files, including its API,
+tests, and configuration. Run `npm run format --prefix mcp/jira-simulator` to
+format them and `npm run format:check --prefix mcp/jira-simulator` to verify
+them. For other changed Prettier-supported files, pass their paths to
+`npm run format:file --prefix mcp/jira-simulator -- <paths>` and
+`npm run format:check:file --prefix mcp/jira-simulator -- <paths>`; paths are
+relative to the simulator directory. This includes `.tsx`, JSON, CSS, HTML
+and Markdown files.
+
 ## Commit messages
 
 All commits must follow Conventional Commits:

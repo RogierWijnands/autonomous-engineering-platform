@@ -3,6 +3,17 @@
 Always route work in this repository through
 `.github/agents/orchestrator.agent.md` and its full role sequence.
 
+## Local startup agreement
+
+- The root `npm run start` must start all local application projects and their
+  required runtime processes and services. When adding one, update the root
+  startup chain in the same change, directly or through an existing child
+  startup script; do not start a process twice.
+- Update the startup documentation and verify the affected startup and
+  shutdown paths. Preserve the security model and required approval boundaries;
+  report any service that cannot safely be started rather than silently
+  omitting it.
+
 ## Engineering role sequence
 
 For every repository request, apply the role pipeline in order:
@@ -45,6 +56,13 @@ ran.
 
 ## Cross-cutting requirements
 
+- Format every created or changed file, including tests, docs and
+  configuration, using an applicable project or language formatter; run the
+  relevant check. For non-text or unsupported files, review their format
+  manually and report the exception rather than silently skipping them.
+- Write readable code with clear control flow and blank lines separating
+  logical steps where helpful. Review this explicitly; a formatter alone does
+  not ensure meaningful whitespace. Add comments only for non-obvious intent.
 - Every role must use WCAG 2.2 AA as the engineering target whenever it
   evaluates, designs, implements, tests, or reviews user-facing interfaces.
   This is not a claim of legal compliance.

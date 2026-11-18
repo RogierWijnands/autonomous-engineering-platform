@@ -7,6 +7,7 @@ interface MakeStandaloneDialogProps {
   issue: Issue;
   initialStatus: IssueStatus;
   fallbackFocusRef?: RefObject<HTMLElement>;
+  requestError?: string;
   onConfirm: (status: IssueStatus) => void;
   onClose: () => void;
 }
@@ -15,6 +16,7 @@ export function MakeStandaloneDialog({
   issue,
   initialStatus,
   fallbackFocusRef,
+  requestError,
   onConfirm,
   onClose,
 }: MakeStandaloneDialogProps) {
@@ -42,39 +44,63 @@ export function MakeStandaloneDialog({
         aria-describedby="standalone-issue standalone-description"
         onSubmit={submit}
       >
+        {requestError && (
+          <p className="form-error" role="alert">
+            {requestError}
+          </p>
+        )}
         <div className="modal-heading">
           <div>
             <h2 id="standalone-title">Make subtask standalone?</h2>
-            <p id="standalone-issue" className="modal-project-context">{issue.key}: {issue.summary}</p>
+            <p id="standalone-issue" className="modal-project-context">
+              {issue.key}: {issue.summary}
+            </p>
           </div>
-          <button type="button" className="icon-button close-button" aria-label="Close standalone confirmation" onClick={onClose}>
+          <button
+            type="button"
+            className="icon-button close-button"
+            aria-label="Close standalone confirmation"
+            onClick={onClose}
+          >
             <X size={18} />
           </button>
         </div>
         <p id="standalone-description">
-          This will remove the subtask from {issue.parentIssueKey} and make it a standalone Task.
+          This will remove the subtask from {issue.parentIssueKey} and make it a
+          standalone Task.
         </p>
         <label className="form-field">
           <span>Destination column</span>
           <select
             value={status}
             onChange={(event) => {
-              const nextStatus = issueStatuses.find((candidate) => candidate === event.target.value);
+              const nextStatus = issueStatuses.find(
+                (candidate) => candidate === event.target.value,
+              );
               if (!nextStatus) throw new Error("Invalid destination column.");
               setStatus(nextStatus);
             }}
           >
             {issueStatuses.map((option) => (
-              <option key={option} value={option}>{option}</option>
+              <option key={option} value={option}>
+                {option}
+              </option>
             ))}
           </select>
         </label>
         <div className="modal-footer">
           <div className="modal-buttons">
-            <button type="button" className="secondary-button" data-dialog-initial-focus onClick={onClose}>
+            <button
+              type="button"
+              className="secondary-button"
+              data-dialog-initial-focus
+              onClick={onClose}
+            >
               Cancel
             </button>
-            <button type="submit" className="primary-button">Make standalone task</button>
+            <button type="submit" className="primary-button">
+              Make standalone task
+            </button>
           </div>
         </div>
       </form>
