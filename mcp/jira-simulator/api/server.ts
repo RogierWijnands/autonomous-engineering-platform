@@ -1,3 +1,4 @@
+import { constants as fileSystemConstants } from "node:fs";
 import { createServer } from "node:http";
 import { fileURLToPath } from "node:url";
 import { createStore, InputError, isRecord } from "./store.ts";
@@ -11,7 +12,10 @@ if (process.env.JIRA_TEST_MODE === "1" && database !== ":memory:") {
   throw new Error("Test mode requires an in-memory database.");
 }
 
-process.umask(0o077);
+const denyGroupAndOtherPermissions =
+  fileSystemConstants.S_IRWXG | fileSystemConstants.S_IRWXO;
+
+process.umask(denyGroupAndOtherPermissions);
 const store = createStore(database);
 
 const server = createServer(async (req, res) => {
