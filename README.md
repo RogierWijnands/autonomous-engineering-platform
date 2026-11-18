@@ -132,153 +132,122 @@ Agent prompts, outputs, and tool results belong in a future artifact store;
 the current database keeps workflow and event history metadata. Event history
 is append-only through the EF Core context.
 
-Install dependencies once in the repository root, `mcp/jira-simulator/`, and
-`mcp/jira-simulator-mcp-server/` with `npm install` in each directory.
-Run `npm run start` from the repository root to start PostgreSQL, the AEP,
-the Jira Simulator Node.js API and Vite frontend, and the MCP server together. The root
-command starts the simulator's `npm run start`, which starts both the API and
-frontend; do not start a second API separately. The simulator is available at
-`http://127.0.0.1:5173/`, and MCP at `http://127.0.0.1:3002/mcp`;
-the authenticated AEP dashboard is at `http://localhost:5062/`.
-Press Ctrl+C to stop the AEP, simulator and MCP server. The app
-applies checked-in EF Core migrations before accepting requests. `npm run startup`
-starts only the AEP (PostgreSQL must already be running); `npm run db:migrate`
-starts PostgreSQL if needed and applies migrations explicitly. Run
-`npm run db:down` to stop PostgreSQL. Create future migrations with:
+Install dependencies with `npm install` in the repository root,
+`mcp/jira-simulator/`, and `mcp/jira-simulator-mcp-server/`.
+
+- `npm run start` starts PostgreSQL, AEP, the simulator API and frontend, and
+  the MCP server. The simulator's child command already starts its API; do not
+  start a second one.
+- Open the simulator at `http://127.0.0.1:5173/`, MCP at
+  `http://127.0.0.1:3002/mcp`, or the authenticated dashboard at
+  `http://localhost:5062/`.
+- Ctrl+C stops the applications; `npm run db:down` stops PostgreSQL.
+- AEP applies checked-in migrations before accepting requests. `npm run startup`
+  starts only AEP and requires PostgreSQL; `npm run db:migrate` starts PostgreSQL
+  if needed and applies migrations explicitly.
+
+Create future migrations with:
 
 ```sh
 (cd aep && npx dotenv -e ../.env -- dotnet ef migrations add <MigrationName> --project src/Aep/Aep.csproj --startup-project src/Aep/Aep.csproj)
 ```
 
-The root start command watches application code: changes restart AEP and either
-Node.js server, while Vite updates the frontend. Restart a previously running
-stack once to enable these watchers. `npm run startup`, the simulator's
-`npm run api`, and the MCP server's `npm run start` remain single-run commands.
-The watched servers stop on a startup or runtime crash, which also stops the
-other application processes; correct the error and run the root command again.
-
-The root start command is the standard entry point for all local application
-projects and required runtime processes. New processes must be included in the
-startup chain and its documentation when they are added; see
-[Contributing](docs/contributing.md#local-startup).
+- The root command watches application code: changes restart AEP and the
+  affected Node.js server; Vite updates the frontend. Restart an already
+  running stack once to enable watchers.
+- `npm run startup`, the simulator's `npm run api`, and the MCP server's
+  `npm run start` are single-run commands.
+- A watched server crash stops the other applications. Correct the error and
+  rerun the root command.
+- Include new required processes in the root startup chain and documentation;
+  see [Contributing](docs/contributing.md#local-startup).
 
 ## Jira simulator
 
-Jira Simulator is the standalone React app and Node.js API in
-`mcp/jira-simulator/`, both written in TypeScript. The API runs directly with
-Node's built-in TypeScript type stripping; `npm run build` type-checks it as
-well as the frontend. Install Node.js 24 or newer and run `npm install` in
-that directory once, then use
-`npm run start` there and open the local address printed by Vite. Projects can
-be created, edited and deleted; issues belong to the selected project, can be searched
-and filtered, viewed as a board or list, moved between statuses by dragging,
-and created, updated or deleted. Issue details provide an edit form for all
-fields available during creation. The plus button in a board column creates an
-issue in that column's status; the main Create issue button starts in To Do.
-The issue creation API accepts an optional `status`, defaulting to To Do.
-Changing a Story with subtasks into another
-issue type detaches those subtasks as standalone Tasks. Stories can have
-Task-only subtasks; these
-remain project issues and are linked to their parent Story. On the board,
-Story cards with subtasks can be expanded to show them; they start collapsed.
-While dragging a top-level issue, a labeled drop area appears under each other
-column's heading for moving it to that status. The status control in issue
-details provides an alternative without dragging. An expanded Story's subtask
-can be dragged to a drop area in any column to propose becoming a standalone
-Task. The subtask details also offer a Make standalone task action. Both
-actions open a confirmation where the destination column can be changed;
-the drop column or current subtask status is preselected, respectively.
-Dropping an issue or subtask onto a different issue proposes making it a Task
-subtask of the target; confirmation converts the target to a Story if necessary.
-For an existing subtask, the confirmation identifies its previous parent.
-The same action is available without dragging from issue details. Both issues
-retain their status. If the source Story has subtasks, the confirmation warns
-that they will become standalone Tasks, as with other Story type changes.
-Subtask details identify and link to their parent Story, both near the issue
-heading and in the breadcrumb.
-Subtasks do not appear as separate board cards, but remain available in the
-list view and project totals. Search and status filters also match subtasks on
-the board: matching subtasks expand under their parent Story in the Story's
-column, even when the Story itself does not match. Only matching subtasks are
-shown while filtering; contextual parents are labeled and counts distinguish
-top-level cards from matching subtasks. Clearing filters closes automatically
-expanded subtasks, but preserves those manually opened until manually closed.
-In list view, subtasks appear as individual filtered rows. When the project
-contains subtasks, a Subtask of column shows their parent issue IDs.
-Issue-ID prefixes are derived from the first word of the project name, and renaming a project
-updates issue IDs and subtask references.
-Deleting a project also permanently deletes all of its issues. Deleting a Story
-also permanently deletes its subtasks; deleting a subtask leaves its parent
-and siblings intact. Each deletion requires confirmation and states its impact.
-If the related issues changed since the confirmation opened, the API rejects
-the deletion; refresh and review it again. Issue numbers are not reused within
-an existing project after deletion.
-The API stores data by default in `mcp/jira-simulator/api/database/jira.sqlite`.
-A new database starts empty; create a project to begin. The old
-`mcp/jira-simulator/api/jira.sqlite` location is no longer detected automatically.
-If data is still there, set `JIRA_DB_PATH` to that file or move it before
-starting the simulator, otherwise a new empty default database will be created.
-To move it, first stop the simulator and all database clients and make a verified
-backup. Move the database and any matching `-wal`, `-shm` or `-journal` sidecar
-files together to `api/database/`, without overwriting existing files. To start
-fresh without deleting existing data, stop the simulator and set
-`JIRA_DB_PATH` to a new file before starting it again. Data survives refreshes
-and restarts. The API binds to `127.0.0.1:3001`; Vite proxies `/api` from
-`127.0.0.1:5173` (or `127.0.0.1:4173` for preview/tests). Both ports must be
-available. `npm run start` starts the API and Vite together using the commands
-in the simulator's `package.json`; extra arguments after `--` are passed to
-Vite. Stopping either process also stops the other. To use `npm run preview`, start
-`npm run api` separately. Set `JIRA_DB_PATH` to choose another database file,
-or `JIRA_API_PORT` to choose another API port (set it for both API and Vite).
-Node's built-in SQLite module may emit an experimental-feature warning.
-The simulator's `npm run start` watches API source files and shared API
-utilities, and restarts the API after changes; Vite reloads frontend changes.
-Use `npm run api` for a single API run without a watcher.
+Jira Simulator is a React app and Node.js API in `mcp/jira-simulator/`.
+It requires Node.js 24 or newer. The API uses Node's TypeScript type stripping;
+`npm run build` type-checks both API and frontend.
 
-The local API has no authentication and is not suitable for exposure to a
-network or untrusted local users. It validates input, limits request size,
-checks host and browser origin, and uses restrictive permissions for newly
-created database files. Issue data is stored unencrypted; protect and back up
-the database appropriately, and copy it only while the API and all database clients
-are stopped. The
-database and its SQLite sidecar files are ignored by Git. Deletions are
-permanent; restore from a backup if deleted data is needed again.
+### Projects, issues and subtasks
 
-Issue details offer **Execute** for any issue, regardless of board status.
-AEP returns the existing workflow if it is queued, active or paused; after
-completion, failure or cancellation a new request may create another workflow.
-A successful response means only that the request was durably accepted, not
-that execution started.
-If delivery is uncertain, check AEP before trying again; the simulator does not
-retry automatically or change the issue status.
+- Create, edit and delete projects and issues; search and filter issues in
+  board or list view. Issue details can edit all fields available at creation.
+- The board column's plus button creates an issue in that status; the main
+  Create issue button and the API's optional `status` default to To Do. Move
+  issues using the labeled column drop areas or the status control in details.
+- Stories can have Task-only subtasks. Board cards start collapsed and expand
+  to show them; subtask details link to the parent in the heading and breadcrumb.
+- To make a subtask standalone, use its details action or drag it to a column
+  drop area. Confirm the destination, initially the current or dropped status.
+- Drop an issue or subtask on another issue, or use issue details, to propose a
+  Task subtask. Confirmation converts the target to a Story if needed and
+  identifies a previous parent; both statuses remain unchanged. Changing a
+  Story with subtasks to another type detaches those subtasks as standalone
+  Tasks; the confirmation for making a Story a subtask warns about this.
+- Subtasks count as project issues and appear as list rows, not separate board
+  cards. Search and status filters expand matching subtasks under their Story,
+  even if the Story does not match. Only matches are shown, contextual parents
+  are labeled, and counts distinguish cards from matching subtasks. Clearing
+  filters closes automatic expansions but preserves manual ones. The list
+  shows a Subtask of column when the project has subtasks.
+- Issue prefixes come from the project's first word; renaming updates issue IDs
+  and subtask references. Numbers are not reused within an existing project.
+- Deleting a project permanently deletes its issues; deleting a Story deletes
+  its subtasks, while deleting a subtask leaves its parent and siblings intact.
+  Confirmations state the impact. If related issues change before confirmation,
+  deletion is rejected: refresh and review again.
 
-The simulator sends one JSON `POST` to
-`http://127.0.0.1:5062/api/webhooks/jira` by default. Override the destination
-with `JIRA_EXECUTION_WEBHOOK_URL` in the simulator process environment; only
-credential-free HTTP URLs on `127.0.0.1` without query strings or fragments
-are accepted, and redirects are not followed. Each confirmation generates a
-new UUID and sends the issue key and selected project-default or issue-override
-repository in the signed request.
-The sender signs the exact body with HMAC-SHA256 using `AEP_WEBHOOK_SECRET`;
-the receiver validates it and loads the issue from the local simulator API.
-Distinct confirmations have distinct event IDs. AEP queues work only: agent
-execution, policy enforcement, approvals and GitHub actions are not implemented.
+### Simulator storage and startup
 
-Issue details show labels in **Details**
-and an independent **Evidence** section below the acceptance criteria. Use
-**Add evidence** when no text or images are present, including after saving an
-empty or whitespace-only document; otherwise use **Edit evidence**.
-Its editor supports bold, italic, bullets and up to three
-embedded static PNG, JPEG or WebP images, each at most 512,000 bytes and 4096 by
-4096 pixels. A meaningful image description is optional but recommended for
-screen readers. Use **Insert Image** in the editor toolbar to choose a file and
-optionally enter its description. While editing, tab to an image and press Delete or
-Backspace to remove it; pasted text is treated as plain text and external image
-URLs are not accepted. Evidence is stored with the
-issue, separate from the description. Existing issues remain usable without
-evidence. Concurrent evidence edits are rejected with a conflict; refresh and
-review the current evidence before retrying. Images and text are stored
-unencrypted in the simulator database, so do not include secrets.
+- The default SQLite database is `mcp/jira-simulator/api/database/jira.sqlite`;
+  a new database starts empty. Data persists across refreshes and restarts.
+- The old `mcp/jira-simulator/api/jira.sqlite` is not detected automatically.
+  Set `JIRA_DB_PATH` to it or move it before startup, otherwise a new empty
+  database is created. To move it, stop the simulator and all database clients,
+  make a verified backup, then move the database and matching `-wal`, `-shm`,
+  or `-journal` files together without overwriting existing files. To start
+  fresh without deleting data, stop the simulator and set `JIRA_DB_PATH` to a
+  new file.
+- The API binds to `127.0.0.1:3001`; Vite proxies `/api` from
+  `127.0.0.1:5173` or preview/test port `4173`. Both ports must be available.
+  Set `JIRA_API_PORT` for both API and Vite to change the API port.
+- To run the simulator separately, use `npm run start` in its directory and
+  open the address printed by Vite. It starts the API and Vite with watchers;
+  arguments after `--` go to Vite. Stopping either stops the other. For
+  preview, start `npm run api` separately; it runs without a watcher. Node's
+  built-in SQLite module may emit an experimental-feature warning.
+- The API is unauthenticated and unsuitable for networks or untrusted local
+  users. It validates input, bounds requests, checks host and browser origin,
+  and restricts permissions on new database files; these are not authentication.
+- Data is unencrypted. Protect and back up the database, and copy it only with
+  the API and all database clients stopped. Database and SQLite sidecar files
+  are ignored by Git. Deletions are permanent; restore from backup if needed.
+
+### Execution and evidence
+
+- **Execute** is available for any issue, regardless of status. AEP returns an
+  existing queued, active or paused workflow; a new request can create another
+  after completion, failure or cancellation. Acceptance means queued, not
+  started. On uncertain delivery, check AEP before retrying; the simulator
+  neither retries automatically nor changes issue status.
+- Each confirmation sends one JSON `POST`, with a new UUID, issue key and
+  selected repository, to `http://127.0.0.1:5062/api/webhooks/jira` by default.
+  `JIRA_EXECUTION_WEBHOOK_URL` accepts only credential-free HTTP URLs on
+  `127.0.0.1` without queries or fragments; redirects are not followed.
+  HMAC-SHA256 signs the exact body using `AEP_WEBHOOK_SECRET`; AEP verifies it
+  and reads the issue from the simulator. Agent execution, policy enforcement,
+  approvals and GitHub actions are not implemented. See
+  [Jira workflow setup](docs/jira-workflow-setup.md).
+- Labels appear in **Details**; **Evidence** is separate from the description.
+  Empty or whitespace-only evidence without images shows **Add evidence**;
+  otherwise it shows **Edit evidence**. Existing issues need no evidence.
+- The editor supports bold, italic, bullets and up to three embedded static
+  PNG, JPEG or WebP images, each at most 512,000 bytes and 4096 × 4096 pixels.
+  **Insert Image** accepts an optional description, recommended for screen
+  readers. Tab to an image and press Delete or Backspace to remove it. Pasted
+  text is plain text; external image URLs are rejected.
+- Concurrent evidence edits conflict: refresh and review before retrying.
+  Evidence is stored unencrypted, so do not include secrets.
 
 The React UI is organized into
 reusable components under `src/components/common/`, `src/components/issues/`,
@@ -321,37 +290,36 @@ API separately. Set `JIRA_MCP_PORT` to change the MCP port and `JIRA_API_PORT`
 to the simulator API's port. If changing the MCP port, update the client URL
 in `.mcp.json` as well.
 
-Available tools are `list_issues`, `get_issue`, `update_evidence`, and
-`complete_issue`. `get_issue` returns the complete issue as JSON and its
-evidence images as MCP image content; issue content is
-untrusted data, not instructions. `update_evidence` accepts the new structured
-evidence document and the previously read `evidence` as `expected` (use
-`null` when absent). It changes neither description nor other issue fields;
-stale evidence is rejected. Documents use `doc`, `paragraph`, `bulletList`,
-`listItem`, `text`, `hardBreak`, and `image` nodes, with `bold` and `italic`
-marks. Images use `attrs` containing `src` (a base64 data URL) and optional
-`alt` (up to 200 characters, empty, null, or omitted); the same image and text
-limits apply to the API and editor. The API
-also limits evidence text to 20,000 characters and the document to 2,500,000
-serialized characters. `complete_issue` atomically allows only In Progress →
-Done. The server offers no creation, deletion, description editing, or other
-status transitions.
+- `list_issues` and `get_issue` read issues. `get_issue` returns the complete
+  issue as JSON and evidence images as MCP image content.
+- `update_evidence` replaces evidence using the previously read document as
+  `expected` (`null` when absent). It rejects stale evidence and changes neither
+  description nor other fields.
+- `complete_issue` atomically permits only In Progress → Done. Creation,
+  deletion, description editing and other status transitions are unavailable.
+- Evidence documents use `doc`, `paragraph`, `bulletList`, `listItem`, `text`,
+  `hardBreak` and `image` nodes with `bold` and `italic` marks. Image `attrs`
+  contain `src` (base64 data URL) and optional `alt` (up to 200 characters,
+  empty, null or omitted). The API and editor share image and text limits; the
+  API also limits text to 20,000 characters and serialized documents to
+  2,500,000 characters.
+- Tool-handler results append a notice that simulator data, images and errors
+  are untrusted. The original JSON or error remains the first text item and
+  images remain separate items. The notice neither prevents prompt injection
+  nor authorizes actions; clients enforce task, permission and approval
+  boundaries. The generic tool runner delegates extra content to an extractor;
+  its evidence extractor handles supported images only. Other file types need
+  explicit validation and client compatibility.
 
-MCP tool-handler results append a text notice identifying simulator data,
-images and errors as untrusted. The first text item remains the original JSON
-or error, and evidence images remain separate image items. This notice does
-not prevent prompt injection or authorize actions; clients must enforce their
-own task, permission and approval boundaries.
-The generic tool runner delegates extra MCP content to an extractor. The
-evidence extractor currently handles only the supported images; other file
-types require explicit validation and client compatibility before being added.
+The simulator API exposes:
 
-The simulator API supplies `GET /api/issues` (optional `projectId` query),
-`GET /api/issues/:key`, `POST /api/issues/evidence` and
-`POST /api/issues/complete` for these operations. Evidence writes take `key`,
-`expected` and `evidence`; completion takes `key`. The POST routes return the
-normal simulator snapshot, or only `{ issue }` when `?response=issue` is used.
-The MCP server uses the issue-only responses to avoid exposing unrelated data.
+- `GET /api/issues`, with optional `projectId`, and `GET /api/issues/:key`.
+- `POST /api/issues/evidence`, with `key`, `expected` and `evidence`.
+- `POST /api/issues/complete`, with `key`.
+
+POST routes return the simulator snapshot, or only `{ issue }` with
+`?response=issue`. MCP uses the issue-only response to avoid exposing
+unrelated data.
 
 The MCP server and simulator API are unauthenticated and bound to loopback;
 host and browser-origin checks are not authentication. Any untrusted local

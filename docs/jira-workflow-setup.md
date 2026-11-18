@@ -2,24 +2,21 @@
 
 ## What works now
 
-The trigger is the explicit **Execute** confirmation, not dragging an issue
-to In Progress. The simulator sends an authenticated local webhook; AEP checks
-its signature and payload, reads the current issue through the local simulator
-API, validates the repository selected by the simulator and commits a workflow, seven pending
-steps, a queue event in the event history and an event receipt in PostgreSQL. Only after the
-transaction commits does AEP respond with `202 Accepted`.
-Reusable identifiers are defined in `aep/src/Aep/Constants/`; the queue event
-keeps the persisted value `workflow.queued` for compatibility with existing history.
-Workflow and step statuses use enums, while planned step names and the Jira
-webhook event use reusable constants. Event actors remain the configured Jira
-application name; Jira issue statuses remain externally supplied data.
-
-The planned order is Analyst, Architect, UI/UX design, Developer, UI/UX
-review, Tester and Reviewer. No worker consumes the queue in this version:
-all steps remain Pending. No Copilot process, authentication, repository clone,
-policy checks, approvals, GitHub actions or issue completion is performed.
-The dashboard displays real persisted queue events, not agent output. Agent
-logs and live execution require a future authenticated, isolated runtime.
+- **Execute** confirmation triggers intake; dragging an issue to In Progress
+  does not. AEP verifies the local webhook, reads the issue from the simulator
+  API and validates the selected repository.
+- A transaction persists the workflow, seven pending steps, a queue event and
+  an event receipt in PostgreSQL. Only after commit does AEP return `202 Accepted`.
+- The planned order is Analyst, Architect, UI/UX design, Developer, UI/UX
+  review, Tester and Reviewer. No worker consumes the queue: every step stays
+  Pending. Copilot execution and authentication, repository cloning, policy
+  checks, approvals, GitHub actions and issue completion are not implemented.
+  The dashboard shows persisted queue events, not agent output; live execution
+  and logs require a future authenticated, isolated runtime.
+- Reusable identifiers live in `aep/src/Aep/Constants/`; the queue event keeps
+  `workflow.queued` for compatibility. Workflow and step statuses use enums;
+  step names and the Jira webhook event use constants. Actors remain the
+  configured Jira application name, and Jira issue statuses are external data.
 
 ## Configure the stack
 
@@ -46,74 +43,65 @@ logs and live execution require a future authenticated, isolated runtime.
    reports a lost connection and retries. Its token remains in browser memory
    until disconnect or page close; it is not saved in local storage.
 
-The simulator stores repository selections in its local SQLite database. The
-issue override takes precedence over the required project default. Existing
-projects without a default remain readable, but must be updated in **Edit
-project** before an issue can be executed, even if it has an override; the
-simulator rejects the request with HTTP 409 without sending a webhook.
-New or edited projects cannot be saved without a valid default. A new workflow
-records the signed selection at the time
-of confirmation; later edits do not change an existing workflow. Existing
-`JiraRepositories` appsettings or environment mappings are no longer read;
-re-enter those mappings in the simulator UI. No automatic import is performed.
+### Repository and endpoint settings
 
-The default webhook destination is
-`http://127.0.0.1:5062/api/webhooks/jira`. The optional simulator environment
-variable `JIRA_EXECUTION_WEBHOOK_URL` accepts only credential-free loopback
-HTTP URLs. `JIRA_API_PORT` configures the loopback simulator API port used by
-AEP (default 3001). Do not expose either service across networks or containers.
-The AEP's `Jira:ApplicationName` setting (environment override
-`Jira__ApplicationName`) defaults to `jira-simulator`. It must be 1–64
-characters without control characters or surrounding whitespace. It identifies
-the persisted issue source and queue audit actor, not just a display label.
-Keep the existing value for existing databases: changing it creates a different
-issue identity and can bypass active-workflow deduplication. Change it only as
-part of a controlled database migration that reconciles existing issues and
-active workflows; do not simply rename it on a live installation.
-The Jira integration currently speaks the local simulator API contract; renaming
-the adapter does not provide Jira Cloud compatibility.
+- Repository selections are stored in the simulator's SQLite database. An
+  issue override takes precedence over the required project default. Existing
+  projects without a default remain readable, but execution returns HTTP 409
+  without sending a webhook until **Edit project** supplies one, even if an
+  issue has an override. New or edited projects require a valid default.
+- A workflow records the signed selection at confirmation; later edits do not
+  alter it. Old `JiraRepositories` appsettings or environment mappings are no
+  longer read or imported: re-enter them in the simulator UI.
+- The default webhook is `http://127.0.0.1:5062/api/webhooks/jira`.
+  `JIRA_EXECUTION_WEBHOOK_URL` accepts only credential-free loopback HTTP URLs;
+  `JIRA_API_PORT` sets the simulator API port used by AEP (default 3001).
+  Do not expose either service across networks or containers.
+- `Jira:ApplicationName` (environment override `Jira__ApplicationName`)
+  defaults to `jira-simulator` and must contain 1–64 characters without control
+  characters or surrounding whitespace. It identifies the persisted issue
+  source and queue actor, not just a label. Changing it can bypass active
+  workflow deduplication. Keep the existing value unless a controlled database
+  migration reconciles existing issues and active workflows.
+- The Jira integration uses the simulator API contract; renaming the adapter
+  does not provide Jira Cloud compatibility.
 
 ## Duplicate requests and recovery
 
-Each confirmation creates a new event UUID. AEP locks the issue's stable
-project-ID/issue-number row in PostgreSQL and enforces a partial unique index:
-at most one Received, Running or Paused workflow exists per issue. A new
-confirmation while one exists returns its ID and `alreadyQueued: true`, without
-adding another workflow. After Completed, Failed or Cancelled, a new event may
-create a new workflow. The current version has no mechanism to advance to those
-terminal states. The queue survives AEP restart.
-
-An exact replay of the same event ID and body returns the original workflow
-even after it reaches a terminal state; reuse of an event ID with a different
-body returns 409. The simulator does not retry automatically. A timeout or
-connection failure may occur after the database commit, so check the dashboard
-before retrying. Existing databases with multiple active workflows for one
-issue cannot accept the new unique index until an operator resolves the
-conflict; the migration fails rather than deleting records.
+- Each confirmation creates a new event UUID. AEP locks the stable
+  project-ID/issue-number row and uses a partial unique index to permit at most
+  one Received, Running or Paused workflow per issue.
+- A new confirmation for an active workflow returns its ID and
+  `alreadyQueued: true`. After Completed, Failed or Cancelled, a new event may
+  create another workflow, although no mechanism advances to those states yet.
+  The queue survives AEP restart.
+- An exact event ID and body replay returns the original workflow even after a
+  terminal state; reusing the ID with a different body returns 409.
+- The simulator does not retry automatically. A timeout or connection failure
+  can happen after commit, so check the dashboard before retrying.
+- Existing duplicate active workflows must be resolved by an operator before
+  adding the unique index; the migration fails rather than deleting records.
 
 ## Security and operations
 
-The signed body includes the selected repository as well as the issue key and
-event ID. The HMAC covers the raw JSON body; the header is `X-Aep-Signature:
-sha256=<hex>`. Missing/short secrets fail closed. The read-only dashboard API
-requires `Authorization: Bearer <dashboard token>`; the API additionally
-rejects non-loopback clients and non-local Host headers. The dashboard renders
-issue fields as text and applies a content security policy. The simulator API
-and MCP remain unauthenticated to local processes: this is not multi-user
-isolation. Tokens are transmitted over loopback HTTP; do not use this setup on
-an untrusted host or put it behind an untrusted proxy. The `.env` is ignored,
-but its filesystem permissions, backup and rotation remain the
-operator's responsibility. The simulator API has no local-user authentication:
-other local processes can change repository selections. Format validation is
-not authorization to access a repository; before real execution, enforce a
-host-side repository allowlist, least-privilege GitHub credentials and approval.
-
-The database contains issue summaries, repository names and workflow metadata.
-Protect it and plan retention and backups. An issue may contain prompt
-injection; storing it does not make it an instruction. Before actual agent
-execution, implement and test the policy, least-privilege authorization,
-isolation, approval, prompt-injection and logging controls described in
-[the security model](security-model.md). This setup is not production-ready.
+- The signed raw JSON contains the repository, issue key and event ID; the
+  header is `X-Aep-Signature: sha256=<hex>`. Missing or short secrets fail closed.
+- The read-only dashboard API requires `Authorization: Bearer <dashboard token>`
+  and rejects non-loopback clients and non-local Host headers. The dashboard
+  renders issue fields as text and applies a content security policy.
+- Simulator API and MCP access is unauthenticated for local processes. Tokens
+  travel over loopback HTTP; do not use this setup on an untrusted host or
+  behind an untrusted proxy. Other local processes can change repository
+  selections. The ignored `.env` still needs operator-managed permissions,
+  backup and rotation.
+- Repository format validation is not authorization. Before real execution,
+  enforce a host-side allowlist, least-privilege GitHub credentials and approval.
+- Protect the database, which contains issue summaries, repositories and
+  workflow metadata; plan retention and backups. Treat issue content as
+  untrusted, including possible prompt injection.
+- Before agent execution, implement and test policy, authorization, isolation,
+  approval, prompt-injection and logging controls in the
+  [security model](security-model.md). This setup is not production-ready.
 
 ## Verification
 

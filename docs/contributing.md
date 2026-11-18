@@ -2,27 +2,26 @@
 
 ## Workspace agent
 
-In VS Code, use **Orchestrator** from the chat agent picker for repository
-work. It always applies Analyst → Architect → UI/UX design → Developer → UI/UX
-review → Tester → Reviewer, using each handoff as the next role's input. For
-frontend changes, UI/UX supplies the design brief before implementation and
-reviews the result afterward. If no interface changes, both UI/UX stages
-report not applicable with a reason. Every role uses WCAG 2.2 AA as the
-engineering target for user-facing interfaces; this is not a claim of legal
-compliance. Every role reports what it did and marks unnecessary work, such as
-tests for a documentation-only change, as not applicable with a reason. The
-role files in `aep/agents/` remain the source of truth; the workspace agent
-applies them as instructions rather than launching separate agents.
+- In VS Code, use **Orchestrator** for repository work. It applies Analyst →
+  Architect → UI/UX design → Developer → UI/UX review → Tester → Reviewer,
+  passing each handoff to the next role.
+- For frontend changes, UI/UX provides a design brief and reviews the result.
+  Otherwise both stages explain why they are not applicable. All roles use
+  WCAG 2.2 AA as the engineering target for user-facing interfaces, not as a
+  claim of legal compliance.
+- Every role reports its work and explains unnecessary work, such as tests for
+  documentation-only changes. The role files in `aep/agents/` remain the
+  source of truth; the workspace agent applies them as instructions rather
+  than launching separate agents.
 
 ## Local startup
 
-The root `npm run start` is the standard way to start all local application
-projects and their required runtime processes and services. Whenever adding
-one, include it in that startup chain in the same change, either directly or
-through an existing child startup script. Avoid duplicate processes, update
-the setup documentation, and verify startup and shutdown. Respect the
-security model and approval boundaries; explicitly report services that cannot
-be started safely rather than silently leaving them out.
+- Root `npm run start` starts all local applications and required services.
+  Add new processes to that chain in the same change, directly or through an
+  existing child script. Avoid duplicates, update setup documentation and
+  verify startup and shutdown.
+- Respect the security model and approval boundaries. Explicitly report services
+  that cannot be started safely rather than silently omitting them.
 
 The root command runs AEP, the simulator API, and the MCP server with
 development watchers, and the frontend with Vite. Verify code changes are
