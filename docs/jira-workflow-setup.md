@@ -27,7 +27,7 @@
    loads the same webhook secret into both AEP and the simulator. Standalone
    starts must provide the same secret to both processes separately. The values
    in `.env.example` are nonfunctional placeholders; generate real values as
-   described in the [README](../README.md#local-database). Restart the affected
+   described in the [README](../README.md#start-the-project). Restart the affected
    services after changing a secret.
 2. Start the stack with `npm run start` from the repository root. In Jira
    Simulator at `http://127.0.0.1:5173/`, create a project or choose **Edit

@@ -12,6 +12,55 @@ workflows in a controlled way. Agents receive only the permissions needed for
 their tasks. People review and approve risky actions and changes that require
 approval.
 
+## Start the project
+
+Run these steps from the repository root.
+
+1. **Install prerequisites:** Node.js 24 or newer with npm, the .NET 10 SDK,
+   and Docker with Compose. Start Docker before continuing.
+2. **Install dependencies:**
+
+   ```sh
+   npm install
+   npm install --prefix mcp/jira-simulator
+   npm install --prefix mcp/jira-simulator-mcp-server
+   ```
+
+3. **Configure secrets:** If the root `.env` does not already exist, create it:
+
+   ```sh
+   cp .env.example .env
+   ```
+
+   Set a unique `POSTGRES_PASSWORD` and two different, unpredictable values
+   of at least 32 UTF-8 bytes for `AEP_WEBHOOK_SECRET` and `AEP_DASHBOARD_TOKEN`.
+   The example values are not usable secrets. For example, run the following
+   twice and use a different result for each token:
+
+   ```sh
+   node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))"
+   ```
+
+   The root `.env` is ignored by Git; keep it private and never commit or share
+   the values. Restart the local services after changing either token.
+
+4. **Start the full stack:**
+
+   ```sh
+   npm run start
+   ```
+
+   This starts PostgreSQL, AEP, the Jira Simulator API and frontend, and the
+   MCP server. Do not start a second simulator API separately.
+
+5. **Open the services:** Jira Simulator at `http://127.0.0.1:5173/`, the
+   authenticated AEP dashboard at `http://localhost:5062/`, and MCP at
+   `http://127.0.0.1:3002/mcp`. Configure a project repository in the simulator
+   before executing an issue; see [Jira workflow setup](docs/jira-workflow-setup.md).
+
+Press Ctrl+C to stop the applications, then run `npm run db:down` to stop
+PostgreSQL. For database commands and migrations, see [Local database](#local-database).
+
 ## Architecture
 
 ```text
@@ -106,45 +155,18 @@ internet access.
 
 ## Local database
 
-Copy `.env.example` to `.env` in the repository root and set a unique
-`POSTGRES_PASSWORD`, plus independent `AEP_WEBHOOK_SECRET` and
-`AEP_DASHBOARD_TOKEN` values of at least 32 UTF-8 bytes each. The local `.env`
-file is ignored by Git. Configure the required Jira project repository in the
-project form; an issue can optionally override it. See
-[Jira workflow setup](docs/jira-workflow-setup.md). Start PostgreSQL
-from the repository root with `npm run db:up`; use `npm run db:logs` to follow
-its logs and `npm run db:down` to stop it. PostgreSQL listens only on
-`127.0.0.1:5432`.
-
-The webhook and dashboard values in `.env.example` are deliberately short
-placeholders, not usable secrets. Generate two different random values locally,
-for example with `node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))"`
-run twice; put one in each field without sharing or committing them. Restart the
-local services after changing either value.
-
-The EF Core model is in `aep/src/Aep/Models/`; its PostgreSQL context and migrations
-are in `aep/src/Aep/Database/`. Non-secret PostgreSQL connection settings (host,
-port, database, and username) are in `aep/src/Aep/appsettings.json`. The `startup`
-and `db:migrate` package scripts load the password from the root `.env`; the
-.NET application combines it with those settings.
-You can override the resulting connection string with `ConnectionStrings__Aep`.
-Agent prompts, outputs, and tool results belong in a future artifact store;
-the current database keeps workflow and event history metadata. Event history
-is append-only through the EF Core context.
-
-Install dependencies with `npm install` in the repository root,
-`mcp/jira-simulator/`, and `mcp/jira-simulator-mcp-server/`.
-
-- `npm run start` starts PostgreSQL, AEP, the simulator API and frontend, and
-  the MCP server. The simulator's child command already starts its API; do not
-  start a second one.
-- Open the simulator at `http://127.0.0.1:5173/`, MCP at
-  `http://127.0.0.1:3002/mcp`, or the authenticated dashboard at
-  `http://localhost:5062/`.
-- Ctrl+C stops the applications; `npm run db:down` stops PostgreSQL.
+- PostgreSQL listens on `127.0.0.1:5432`. Use `npm run db:up`,
+  `npm run db:logs`, and `npm run db:down` to start, inspect, and stop it.
 - AEP applies checked-in migrations before accepting requests. `npm run startup`
   starts only AEP and requires PostgreSQL; `npm run db:migrate` starts PostgreSQL
   if needed and applies migrations explicitly.
+- EF Core models are in `aep/src/Aep/Models/`; the context and migrations are
+  in `aep/src/Aep/Database/`. Non-secret connection settings are in
+  `aep/src/Aep/appsettings.json`; the startup and migration scripts load the
+  password from `.env`. Override the connection with `ConnectionStrings__Aep`.
+- The database stores workflow and event history metadata; event history is
+  append-only through EF Core. Agent prompts, outputs, and tool results belong
+  in a future artifact store.
 
 Create future migrations with:
 
@@ -152,7 +174,9 @@ Create future migrations with:
 (cd aep && npx dotenv -e ../.env -- dotnet ef migrations add <MigrationName> --project src/Aep/Aep.csproj --startup-project src/Aep/Aep.csproj)
 ```
 
-- The root command watches application code: changes restart AEP and the
+### Development watchers
+
+- The root start command watches application code: changes restart AEP and the
   affected Node.js server; Vite updates the frontend. Restart an already
   running stack once to enable watchers.
 - `npm run startup`, the simulator's `npm run api`, and the MCP server's
