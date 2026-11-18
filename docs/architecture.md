@@ -52,21 +52,20 @@ GitHub integration, and background processing will initially live inside this
 project; a component can become a separate project if it later needs independent
 deployment, scaling, or compile-time dependency boundaries.
 
-The simulator API is the source of truth for project and issue changes.
-Project renames, subtask conversions and deletions run in SQLite transactions,
-including their related issue updates. Deleting a project deletes its issues;
-deleting a Story deletes its subtasks. Deletions reject stale related-issue
-lists, and per-project issue sequences prevent key reuse after deletion.
-New databases start empty; existing databases are
-preserved. The browser requests state through Vite's local proxy and
-shows loading and error feedback. The API is local-only and unauthenticated;
-it is not a production or multi-user security boundary.
-Evidence is a validated structured document stored with the issue; existing
-issues without it remain valid. Optimistic evidence checks prevent overwriting
-concurrent edits, while the completion transition is checked atomically.
-The MCP server uses the simulator API rather than accessing SQLite directly.
-It is loopback-only and unauthenticated, not an isolated-container or
-multi-user authorization boundary.
+Simulator data and boundaries:
+
+- The API is the source of truth for project and issue changes. SQLite
+  transactions include related updates for renames, subtask conversions and
+  deletions. Project deletion removes its issues; Story deletion removes its
+  subtasks. Stale related-issue lists are rejected, and per-project sequences
+  prevent key reuse. New databases start empty; existing ones are preserved.
+- The browser uses Vite's local proxy and shows loading and error feedback.
+  Evidence is a validated structured document; existing issues may lack it.
+  Optimistic checks prevent overwriting concurrent edits, and completion is
+  checked atomically.
+- MCP accesses the simulator API, not SQLite directly. Both are local-only and
+  unauthenticated, not production, isolated-container or multi-user
+  authorization boundaries.
 
 Both local Node.js services use Express for HTTP routing and bounded JSON
 parsing. The simulator API starts in `api/server.ts`, keeps shared request
@@ -139,21 +138,20 @@ is not. A workflow must be able to reference at least:
 - workspace and GitHub results;
 - event history and relevant timestamps.
 
-This is a conceptual minimum, not a finalized database schema. Intake
-transactions and active-issue concurrency control are implemented; retention
-and worker recovery remain open. The EF Core model is versioned through
-migrations, which the application applies before accepting requests. The AEP
-persists external Jira records as issues; the `RenameIssueSchema` migration
-renames the earlier table and workflow reference without dropping existing
-records.
-The `RenameAuditEventToEventHistory` migration renames the audit-event table,
-indexes and constraints without deleting existing events. Historical migrations
-retain their original names.
-The unused agent execution, approval, policy decision and pull request EF
-models have been retired. Their legacy tables and any existing records remain
-in PostgreSQL but are no longer managed by the current EF model. Before
-introducing replacement models, explicitly reconcile those tables and their
-data in a future migration; do not assume EF will recreate or remove them.
+This is a conceptual minimum, not a finalized schema:
+
+- Intake transactions and active-issue concurrency control are implemented;
+  retention and worker recovery remain open. AEP applies EF Core migrations
+  before accepting requests.
+- AEP persists external Jira records as issues. `RenameIssueSchema` renames the
+  earlier issue table and workflow reference without dropping records.
+  `RenameAuditEventToEventHistory` renames the audit-event table, indexes and
+  constraints without deleting events.
+  Historical migrations retain their original names.
+- Retired agent execution, approval, policy decision and pull request EF models
+  leave legacy tables and data in PostgreSQL, unmanaged by the current model.
+  Reconcile them in a future migration before adding replacements; do not
+  assume EF will recreate or remove them.
 
 ## Repository layout
 

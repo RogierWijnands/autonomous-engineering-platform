@@ -58,36 +58,32 @@ and timeout stop or pause the workflow according to explicit rules.
 
 ### 4. Agent execution
 
-The host creates a bounded Docker workspace for the task. Every repository
-request follows Analyst → Architect → UI/UX design → Developer → UI/UX review
-→ Tester → Reviewer, in that order. For user-facing frontend changes, UI/UX
-first provides the design direction and WCAG 2.2 AA acceptance criteria to
-Developer, then reviews the implementation. If no interface changes, both
-UI/UX stages report not applicable and hand off to their next role. Every role
-consumes the preceding handoff and records its own output for the next role.
-Analyst assigns stable IDs to requirements, constraints, and acceptance
-criteria, with risks and verification methods. Architect preserves every ID
-in a traceability register mapping it to design decisions and validation, or
-explaining why it is not applicable. Developer, both UI/UX stages, and Tester
-consume the complete registers, account for every ID with evidence or a
-justified not-applicable status, and carry evidence forward; no stage may
-silently drop an item by summarizing it. Browser test tooling is documented
-in `docs/accessibility-testing.md`.
-For frontend changes, Developer adds or updates end-to-end tests for relevant
-user journeys and accessibility semantics, UI/UX reviews their coverage and
-results, and Tester verifies them. Assess screen-reader accessibility from the
-rendered interface and relevant DOM semantics, and report it as an estimate,
-not observed screen-reader behavior. Explain when E2E tests are not warranted.
-All roles apply WCAG 2.2 AA as the engineering target when evaluating,
-designing, implementing, testing, or reviewing user-facing interfaces; this
-is not a claim of legal compliance. A stage with no other applicable work must
-still report what it checked and why no action was needed; for example,
-documentation-only work may not need code changes or unit tests. If
-requirements are materially ambiguous, pause for user clarification. If
-post-implementation UI/UX, testing, or review identifies an implementation
-defect, return the work to Developer and repeat the affected UI/UX, testing,
-and review stages. Instructions are in `aep/agents/` and
-`.github/agents/orchestrator.agent.md`.
+The host creates a bounded Docker workspace. Each repository request follows
+Analyst → Architect → UI/UX design → Developer → UI/UX review → Tester →
+Reviewer. Each role consumes the preceding handoff and records its own output.
+
+- Analyst assigns stable IDs, risks and verification methods to requirements,
+  constraints and acceptance criteria. Architect maps every ID to design and
+  validation or explains why it is not applicable.
+- Developer, both UI/UX stages and Tester consume the complete registers,
+  account for every ID with evidence or a justified not-applicable status, and
+  pass the evidence forward without silently dropping items.
+- For frontend changes, UI/UX provides design direction and WCAG 2.2 AA
+  criteria before development and reviews the implementation afterward.
+  Otherwise both UI/UX stages report not applicable and hand off to the next
+  role. WCAG 2.2 AA is an engineering target, not a legal-compliance claim.
+- Developer adds or updates E2E tests for relevant frontend journeys and
+  accessibility semantics; UI/UX reviews coverage and results, and Tester
+  verifies them. Explain when E2E tests are not warranted. Assess screen-reader
+  accessibility against the rendered interface and DOM semantics as an
+  estimate, not observed screen-reader behavior. See
+  [browser and accessibility testing](accessibility-testing.md).
+- A stage without applicable work still reports what it checked and why no
+  action was needed. Documentation-only work may not need code or unit tests.
+  Pause for clarification if requirements are materially ambiguous.
+- Return implementation defects found by UI/UX, Tester or Reviewer to Developer,
+  then repeat the affected UI/UX review, tests and final review. Role
+  instructions are in `aep/agents/` and `.github/agents/orchestrator.agent.md`.
 
 The agent container receives no GitHub token, Docker socket, or access to
 personal files. Each step should have a bounded task, timeout, and resource

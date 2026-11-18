@@ -34,40 +34,37 @@ validates and enforces them.
 5. **Human approval:** an approval is an explicit workflow decision and must
    be bound to the correct action and change set.
 
-The local simulator API and MCP server do not authenticate local processes.
-Their loopback bindings and host/origin checks reduce network and browser
-exposure but do not protect against untrusted local users or processes.
-MCP exposes only issue reads, evidence replacement with a conflict check, and
-the In Progress → Done transition; it must not be exposed across containers
-or networks until an authenticated and authorized boundary is designed.
-Issue content and evidence are untrusted and may contain prompt injection.
-Evidence images are embedded, restricted to bounded PNG, JPEG or WebP data,
-and must not contain secrets; evidence remains unencrypted in SQLite.
-The simulator stores form text as data using parameterized SQLite queries and
-renders it as React text rather than HTML. Evidence uses an allowlisted
-document format, validated on writes and database reads and again before the
-browser displays it or loads it into the editor; invalid evidence is reported
-instead of rendered. Only validated embedded images are accepted. These
-controls do not authenticate the API or make arbitrary local processes trusted.
-The browser also validates project and issue field shapes before using a
-simulator snapshot; text containing markup is preserved and rendered as text,
-not rejected merely for looking like code. MCP tool-handler responses append
-a notice that simulator data, images and errors are untrusted. The original
-JSON and images remain available. This notice is guidance to clients, not an
-enforced boundary or a guarantee against prompt injection.
-The simulator's execution webhook sends the issue key, selected repository and a new event ID
-to a configured loopback HTTP endpoint, without following redirects. The
-sender signs the raw JSON with HMAC-SHA256 and AEP validates it with a shared
-secret. Event receipts and a database uniqueness constraint prevent duplicate
-active requests; the read-only dashboard requires a separate bearer token.
-Both services remain local development boundaries, not multi-user isolation.
-Do not enable actual agent execution until host authorization, isolation,
-approval and policy controls are implemented and tested.
-Repository selections are editable through the unauthenticated local simulator
-API. HMAC protects the request in transit, not the integrity of its source or
-the user's authorization. Validate the name as data, and enforce an independent
-host-side repository allowlist and approval before any GitHub action or agent
-execution; a valid `owner/repository` is not proof of authorization.
+### Current local boundaries
+
+- The simulator API and MCP server do not authenticate local processes.
+  Loopback bindings and host/origin checks reduce exposure, but do not protect
+  against untrusted local users or processes. MCP exposes only issue reads,
+  conflict-checked evidence replacement and In Progress → Done; do not expose
+  it across containers or networks without an authenticated, authorized boundary.
+- Issue content and evidence are untrusted and may contain prompt injection.
+  Evidence is unencrypted in SQLite; images must not contain secrets and are
+  restricted to bounded, embedded PNG, JPEG or WebP data.
+- The simulator uses parameterized SQLite queries and renders form text as
+  React text, not HTML. It validates allowlisted evidence on writes and reads
+  and before display or editing; invalid evidence is reported, not rendered.
+  Only validated embedded images are accepted. The browser validates project
+  and issue shapes; markup-like text remains text rather than being rejected.
+  None of these controls authenticates the API or makes local processes trusted.
+- MCP results append an untrusted-data notice while preserving the original
+  JSON and images. This guides clients but is neither an enforced boundary nor
+  a guarantee against prompt injection.
+- The execution webhook sends the issue key, repository and a new event ID to a
+  loopback HTTP endpoint without redirects. AEP validates the raw JSON's
+  HMAC-SHA256 signature. Event receipts and a database uniqueness constraint
+  prevent duplicate active requests; the read-only dashboard uses a separate
+  bearer token. These are local development boundaries, not multi-user isolation.
+- Repository selections are editable through the unauthenticated simulator API.
+  HMAC protects transit, not source integrity or user authorization. Validate
+  the name as data and require an independent host-side repository allowlist
+  and approval before GitHub actions or agent execution; a valid
+  `owner/repository` is not authorization.
+- Do not enable actual agent execution until host authorization, isolation,
+  approval and policy controls are implemented and tested.
 
 ## Threats and intended controls
 
