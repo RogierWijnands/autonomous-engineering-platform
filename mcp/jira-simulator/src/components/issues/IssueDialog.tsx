@@ -6,6 +6,7 @@ import type {
   Project,
   Issue,
   IssueDraft,
+  IssueStatus,
 } from "../../types";
 import { useDialogFocus } from "../common/useDialogFocus";
 
@@ -16,6 +17,7 @@ interface IssueDialogProps {
   project: Project;
   parentIssue?: Issue;
   issue?: Issue;
+  initialStatus?: IssueStatus;
   hasSubtasks?: boolean;
   requestError?: string;
   onSave: (draft: IssueDraft) => void;
@@ -30,6 +32,7 @@ export function IssueDialog({
   project,
   parentIssue,
   issue,
+  initialStatus,
   hasSubtasks = false,
   requestError,
   onSave,
@@ -87,6 +90,7 @@ export function IssueDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="issue-dialog-title"
+        aria-describedby="issue-dialog-context"
         onSubmit={submitIssue}
       >
         {requestError && (
@@ -97,12 +101,12 @@ export function IssueDialog({
         <div className="modal-heading">
           <div>
             <h2 id="issue-dialog-title">{title}</h2>
-            <p className="modal-project-context">
+            <p id="issue-dialog-context" className="modal-project-context">
               {issue
                 ? `${issue.key} · ${project.name}`
                 : parentIssue
                   ? `Subtask of ${parentIssue.key}`
-                  : `Project: ${project.name}`}
+                  : `Project: ${project.name}${initialStatus ? ` · Status: ${initialStatus}` : ""}`}
             </p>
           </div>
           <button

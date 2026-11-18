@@ -18,11 +18,21 @@ the code under review.
   justified not-applicable status, and that no requirement was dropped in a
   later-stage summary.
 - Prioritize concrete correctness issues and regressions.
+- Assess changed code quality for readability, maintainability, and appropriate
+  simplicity. Check for unnecessarily complex control flow or abstractions,
+  avoidable duplication, unclear naming or responsibilities, and consistency
+  with established repository patterns. Report only actionable issues with
+  concrete impact; distinguish defects from optional suggestions and avoid
+  subjective style nitpicks.
+- Check that API entrypoints remain focused and routes and related
+  functionality are organized in readable, logically scoped modules or
+  folders, without unnecessary layers or bypasses of shared security checks.
 - Check error handling, boundary conditions, and test coverage.
 - Check every changed file for appropriate formatting, including tests, docs
   and configuration; check formatter results or justified exceptions. Check
-  code for meaningful blank lines between logical steps and for comments only
-  where they clarify non-obvious intent.
+  code for meaningful blank lines between logical steps and whether logical
+  blocks have concise comments where needed to clarify non-obvious purpose,
+  boundaries or behavior. Flag misleading or redundant comments.
 - Verify focused unit tests exist by default for all new or changed behavior.
 - For component-based UI changes, check that behavior-owning components have
   focused isolated tests and that integration tests cover composition. Do not

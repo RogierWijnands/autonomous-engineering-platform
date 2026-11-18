@@ -11,7 +11,7 @@ interface IssueBoardProps {
   expandedStoryKeys: ReadonlySet<string>;
   onExpandedChange: (issueKey: string, expanded: boolean) => void;
   onOpenIssue: (issue: Issue) => void;
-  onCreateIssue: () => void;
+  onCreateIssue: (status: IssueStatus) => void;
   onMoveIssue: (issueKey: string, status: IssueStatus) => void;
   onMakeSubtask: (issueKey: string, parentIssueKey: string) => void;
 }
@@ -51,22 +51,30 @@ export function IssueBoard({
   function handleDrop(event: DragEvent<HTMLElement>, status: IssueStatus) {
     event.preventDefault();
     const issueKey = event.dataTransfer.getData("text/plain");
-    if (issueKey && issueKey === draggedIssueRef.current?.key) onMoveIssue(issueKey, status);
+    if (issueKey && issueKey === draggedIssueRef.current?.key)
+      onMoveIssue(issueKey, status);
     clearDrag();
   }
 
-  function handleIssueDragOver(event: DragEvent<HTMLDivElement>, targetKey: string) {
+  function handleIssueDragOver(
+    event: DragEvent<HTMLDivElement>,
+    targetKey: string,
+  ) {
     const source = draggedIssueRef.current;
     if (!source) return;
     event.preventDefault();
     event.stopPropagation();
-    const canLink = source.key !== targetKey && source.parentIssueKey !== targetKey;
+    const canLink =
+      source.key !== targetKey && source.parentIssueKey !== targetKey;
     event.dataTransfer.dropEffect = canLink ? "move" : "none";
     setDropTarget(null);
     setIssueDropTarget(canLink ? targetKey : null);
   }
 
-  function handleIssueDrop(event: DragEvent<HTMLDivElement>, targetKey: string) {
+  function handleIssueDrop(
+    event: DragEvent<HTMLDivElement>,
+    targetKey: string,
+  ) {
     event.preventDefault();
     event.stopPropagation();
     const sourceKey = event.dataTransfer.getData("text/plain");
@@ -76,7 +84,9 @@ export function IssueBoard({
       draggedIssueRef.current.parentIssueKey !== targetKey &&
       sourceKey !== targetKey
     ) {
-      event.currentTarget.querySelector<HTMLButtonElement>(".issue-card")?.focus();
+      event.currentTarget
+        .querySelector<HTMLButtonElement>(".issue-card")
+        ?.focus();
       onMakeSubtask(sourceKey, targetKey);
     }
     clearDrag();
@@ -86,8 +96,8 @@ export function IssueBoard({
     <>
       <p className="visually-hidden" id="issue-move-instructions">
         Drag an issue to the drop area below another column heading to move it,
-        or onto another issue to make it a subtask. You can also use the controls
-        in issue details.
+        or onto another issue to make it a subtask. You can also use the
+        controls in issue details.
       </p>
       <p className="visually-hidden" id="subtask-move-instructions">
         Drag a subtask to a column drop area to make it a standalone task, or
@@ -96,7 +106,8 @@ export function IssueBoard({
       </p>
       {filterKey && filteredIssues.some((issue) => issue.parentIssueKey) && (
         <p className="board-filter-note">
-          Matching subtasks appear under their Story, in the Story&apos;s column.
+          Matching subtasks appear under their Story, in the Story&apos;s
+          column.
         </p>
       )}
       <div className="board-grid">
@@ -112,7 +123,10 @@ export function IssueBoard({
             onExpandedChange={onExpandedChange}
             isDropTarget={dropTarget === status}
             issueDropTarget={issueDropTarget}
-            showDropArea={Boolean(draggedIssue && (draggedIssue.parentIssueKey || draggedIssue.status !== status))}
+            showDropArea={Boolean(
+              draggedIssue &&
+              (draggedIssue.parentIssueKey || draggedIssue.status !== status),
+            )}
             draggingSubtask={Boolean(draggedIssue?.parentIssueKey)}
             onOpenIssue={onOpenIssue}
             onCreateIssue={onCreateIssue}

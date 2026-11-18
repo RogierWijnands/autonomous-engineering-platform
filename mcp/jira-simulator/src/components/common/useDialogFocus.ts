@@ -6,8 +6,11 @@ const focusableSelector = [
   "input:not([disabled])",
   "select:not([disabled])",
   "textarea:not([disabled])",
+  "[contenteditable='true']:not([tabindex='-1'])",
   "[tabindex]:not([tabindex='-1'])",
 ].join(", ");
+
+const openDialogs: HTMLElement[] = [];
 
 export function useDialogFocus<T extends HTMLElement>(
   onClose: () => void,
@@ -23,6 +26,8 @@ export function useDialogFocus<T extends HTMLElement>(
 
     if (!activeDialog) return;
 
+    openDialogs.push(activeDialog);
+
     const previouslyFocused =
       document.activeElement instanceof HTMLElement &&
       document.activeElement !== document.body
@@ -35,7 +40,7 @@ export function useDialogFocus<T extends HTMLElement>(
     initialFocus?.focus();
 
     function handleKeyDown(event: KeyboardEvent) {
-      if (!activeDialog) return;
+      if (!activeDialog || openDialogs.at(-1) !== activeDialog) return;
 
       if (event.key === "Escape") {
         if (
@@ -94,6 +99,8 @@ export function useDialogFocus<T extends HTMLElement>(
 
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
+      const index = openDialogs.lastIndexOf(activeDialog);
+      if (index !== -1) openDialogs.splice(index, 1);
 
       const returnFocus = previouslyFocused?.isConnected
         ? previouslyFocused

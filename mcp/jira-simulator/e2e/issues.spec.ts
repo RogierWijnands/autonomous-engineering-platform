@@ -1,5 +1,177 @@
 import { expect, test } from "./fixtures";
 
+test("reports invalid dynamic issue data and allows a safe retry", async ({
+  page,
+}) => {
+  await page.addInitScript(() => Reflect.set(window, "__formInjected", 0));
+  await page.route(
+    "**/api/state",
+    async (route) => {
+      const response = await route.fetch();
+      const state = await response.json();
+      state.issues[0].summary = {
+        type: "script",
+        text: "globalThis.__formInjected=1",
+      };
+      await route.fulfill({ response, json: state });
+    },
+    { times: 1 },
+  );
+  await page.goto("/");
+  const alert = page.getByRole("alert");
+  await expect(alert).toContainText("Invalid simulator data");
+  await expect(
+    page.locator("script").filter({ hasText: "globalThis.__formInjected=1" }),
+  ).toHaveCount(0);
+  expect(await page.evaluate(() => Reflect.get(window, "__formInjected"))).toBe(
+    0,
+  );
+  await alert.getByRole("button", { name: "Retry" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Demo Project" }),
+  ).toBeVisible();
+});
+
+test("warns when a saved issue receives an invalid response", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.route(
+    "**/api/issues/create",
+    async (route) => {
+      const response = await route.fetch();
+      const result = await response.json();
+      delete result.issue;
+      await route.fulfill({ response, json: result });
+    },
+    { times: 1 },
+  );
+  await page.getByRole("button", { name: "Create issue", exact: true }).click();
+  const form = page.getByRole("dialog", { name: "Create an issue" });
+  await form.getByLabel("Summary").fill("Saved before invalid response");
+  await form.getByRole("button", { name: "Create issue", exact: true }).click();
+  await expect(form.getByRole("alert")).toContainText(
+    "Changes may have been saved",
+  );
+  await expect(form.getByLabel("Summary")).toHaveValue(
+    "Saved before invalid response",
+  );
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: /Saved before invalid response/ }),
+  ).toBeVisible();
+});
+
+test("shows labels in Details and Evidence after acceptance criteria on a narrow screen", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 800 });
+  await page.goto("/");
+  await page.getByRole("button", { name: /^DEMO-1001/ }).click();
+  const detail = page.getByRole("dialog", {
+    name: "Add health check endpoint",
+  });
+  await detail.getByRole("button", { name: "Edit issue" }).click();
+  const edit = page.getByRole("dialog", { name: "Edit issue" });
+  const longLabel = "long-label".repeat(20);
+  await edit
+    .getByRole("textbox", { name: /Labels/ })
+    .fill(`backend, ${longLabel}`);
+  await edit.getByRole("button", { name: "Save changes" }).click();
+
+  const criteria = detail.getByRole("heading", {
+    name: /^Acceptance criteria/,
+  });
+  const nextSection = criteria
+    .locator("..")
+    .locator("xpath=following-sibling::*[1]");
+  await expect(
+    nextSection.getByRole("heading", { name: "Evidence" }),
+  ).toBeVisible();
+  const details = detail.getByRole("region", { name: "Details" });
+  const labels = details.getByRole("list", { name: "Labels" });
+  await expect(labels.getByRole("listitem")).toHaveCount(2);
+  await expect(labels).toContainText(longLabel);
+  expect(
+    await details.evaluate(
+      (element) => element.scrollWidth <= element.clientWidth,
+    ),
+  ).toBe(true);
+  expect(
+    await labels.evaluate(
+      (element) => element.scrollWidth <= element.clientWidth,
+    ),
+  ).toBe(true);
+  expect(
+    await labels
+      .getByRole("listitem")
+      .last()
+      .evaluate((element) => element.scrollWidth <= element.clientWidth),
+  ).toBe(true);
+  const editEvidence = detail.getByRole("button", { name: "Add evidence" });
+  await editEvidence.focus();
+  await page.keyboard.press("Enter");
+  await expect(
+    detail.getByRole("textbox", { name: "Evidence editor" }),
+  ).toBeVisible();
+  await detail.getByRole("button", { name: "Cancel" }).click();
+  await expect(editEvidence).toBeFocused();
+});
+
+test("creates issues in the selected column and keeps the main action default", async ({
+  page,
+}) => {
+  await page.goto("/");
+  for (const status of ["To Do", "In Progress", "Done"]) {
+    const trigger = page.getByRole("button", {
+      name: `Create issue in ${status}`,
+    });
+    await trigger.focus();
+    await page.keyboard.press("Enter");
+    const dialog = page.getByRole("dialog", { name: "Create an issue" });
+    const summary = `Created in ${status}`;
+    await expect(
+      dialog.getByText(`Project: Demo Project · Status: ${status}`),
+    ).toBeVisible();
+    await expect(
+      dialog.getByRole("textbox", { name: "Summary" }),
+    ).toBeFocused();
+    await dialog.getByRole("textbox", { name: "Summary" }).fill(summary);
+    await dialog
+      .getByRole("button", { name: "Create issue", exact: true })
+      .click();
+    const detail = page.getByRole("dialog", { name: summary });
+    await expect(
+      detail.getByRole("combobox", { name: "Change issue status" }),
+    ).toHaveValue(status);
+    await detail.getByRole("button", { name: "Close issue details" }).click();
+    await expect(
+      page
+        .getByRole("region", { name: `${status} issues` })
+        .getByRole("button", { name: new RegExp(summary) }),
+    ).toBeVisible();
+  }
+  await page.reload();
+  for (const status of ["To Do", "In Progress", "Done"]) {
+    await expect(
+      page
+        .getByRole("region", { name: `${status} issues` })
+        .getByRole("button", { name: new RegExp(`Created in ${status}`) }),
+    ).toBeVisible();
+  }
+  const trigger = page.getByRole("button", { name: "Create issue in Done" });
+  await trigger.focus();
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Escape");
+  await expect(trigger).toBeFocused();
+  await page.getByRole("button", { name: "Create issue", exact: true }).click();
+  await expect(
+    page
+      .getByRole("dialog", { name: "Create an issue" })
+      .getByText("Project: Demo Project · Status: To Do"),
+  ).toBeVisible();
+});
+
 test("creates an issue with safe text and moves it using the status control", async ({
   page,
 }) => {
@@ -172,6 +344,19 @@ test("keeps issue actions and edit form usable at a narrow viewport", async ({
   await expect(
     dialog.getByRole("button", { name: "Save changes" }),
   ).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(
+    320,
+  );
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Close issue details" }).click();
+  await page.getByRole("button", { name: "Create issue in Done" }).click();
+  const createDialog = page.getByRole("dialog", { name: "Create an issue" });
+  await expect(createDialog).toHaveAccessibleDescription(
+    "Project: Demo Project · Status: Done",
+  );
+  await expect(
+    createDialog.getByRole("textbox", { name: "Summary" }),
+  ).toBeFocused();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(
     320,
   );

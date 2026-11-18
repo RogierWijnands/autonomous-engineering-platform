@@ -16,7 +16,7 @@ interface BoardColumnProps {
   showDropArea: boolean;
   draggingSubtask: boolean;
   onOpenIssue: (issue: Issue) => void;
-  onCreateIssue: () => void;
+  onCreateIssue: (status: IssueStatus) => void;
   onDragOver: (event: DragEvent<HTMLElement>, status: IssueStatus) => void;
   onDrop: (event: DragEvent<HTMLElement>, status: IssueStatus) => void;
   onIssueDragStart: (issue: Issue) => void;
@@ -58,14 +58,16 @@ export function BoardColumn({
       onDrop={(event) => onDrop(event, status)}
     >
       <div className="column-heading">
-        <div className={`status-dot status-${status.toLowerCase().replace(" ", "-")}`} />
+        <div
+          className={`status-dot status-${status.toLowerCase().replace(" ", "-")}`}
+        />
         <h2>{status}</h2>
         <span className="column-count">{issues.length}</span>
         <button
           className="icon-button column-add"
           type="button"
           aria-label={`Create issue in ${status}`}
-          onClick={onCreateIssue}
+          onClick={() => onCreateIssue(status)}
         >
           <CirclePlus size={16} />
         </button>
@@ -85,28 +87,36 @@ export function BoardColumn({
               candidate.issueType === "Task" &&
               candidate.parentIssueKey === issue.key,
           );
-          return <IssueCard
-            key={issue.key}
-            issue={issue}
-            subtasks={filterKey ? subtasks.filter((subtask) => matchingKeys.has(subtask.key)) : subtasks}
-            totalSubtasks={subtasks.length}
-            filterKey={filterKey}
-            manuallyExpanded={expandedStoryKeys.has(issue.key)}
-            onExpandedChange={onExpandedChange}
-            contextOnly={Boolean(filterKey && !matchingKeys.has(issue.key))}
-            instructionsId={instructionsId}
-            subtaskInstructionsId={subtaskInstructionsId}
-            isDropTarget={issueDropTarget === issue.key}
-            onOpen={onOpenIssue}
-            onDragStart={onIssueDragStart}
-            onDragOver={onIssueDragOver}
-            onDrop={onIssueDrop}
-            onDragEnd={onDragEnd}
-          />;
+          return (
+            <IssueCard
+              key={issue.key}
+              issue={issue}
+              subtasks={
+                filterKey
+                  ? subtasks.filter((subtask) => matchingKeys.has(subtask.key))
+                  : subtasks
+              }
+              totalSubtasks={subtasks.length}
+              filterKey={filterKey}
+              manuallyExpanded={expandedStoryKeys.has(issue.key)}
+              onExpandedChange={onExpandedChange}
+              contextOnly={Boolean(filterKey && !matchingKeys.has(issue.key))}
+              instructionsId={instructionsId}
+              subtaskInstructionsId={subtaskInstructionsId}
+              isDropTarget={issueDropTarget === issue.key}
+              onOpen={onOpenIssue}
+              onDragStart={onIssueDragStart}
+              onDragOver={onIssueDragOver}
+              onDrop={onIssueDrop}
+              onDragEnd={onDragEnd}
+            />
+          );
         })}
         {issues.length === 0 && (
           <div className="empty-column">
-            <span>{filterKey ? "No matching issues" : "No issues here yet"}</span>
+            <span>
+              {filterKey ? "No matching issues" : "No issues here yet"}
+            </span>
           </div>
         )}
       </div>

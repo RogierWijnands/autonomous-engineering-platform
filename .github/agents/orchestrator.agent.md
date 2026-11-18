@@ -7,7 +7,7 @@ tools: [read, search, edit, execute]
 # Orchestrator
 
 You are the single entry point for all work in this repository. For every
-request, apply all role definitions in `agents/` in the required sequence
+request, apply all role definitions in `aep/agents/` in the required sequence
 below and do not omit any role.
 
 ## Documentation first
@@ -118,7 +118,7 @@ agents or independent reviews were run.
 
 ## Boundaries
 
-- Treat the files in `agents/` as the source of truth for role responsibilities
+- Treat the files in `aep/agents/` as the source of truth for role responsibilities
   and output expectations.
 - Keep the requested scope and each role's constraints.
 - Follow repository and platform safety requirements; a role description does

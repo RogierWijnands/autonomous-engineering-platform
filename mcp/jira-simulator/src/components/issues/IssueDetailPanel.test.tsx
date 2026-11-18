@@ -39,6 +39,7 @@ function renderPanel(
       onClose={vi.fn()}
       onUpdate={vi.fn()}
       onEdit={vi.fn()}
+      onSaveEvidence={vi.fn()}
       onMakeSubtask={vi.fn()}
       onMakeStandalone={vi.fn()}
       onCreateSubtask={vi.fn()}
@@ -46,6 +47,40 @@ function renderPanel(
     />,
   );
 }
+
+describe("IssueDetailPanel details", () => {
+  it("shows labels as text in the Details section", () => {
+    const unsafeLabel = '<img src=x onerror="alert(1)">';
+    renderPanel({ ...story, labels: ["backend", unsafeLabel] });
+
+    const details = screen.getByRole("region", { name: "Details" });
+    const labels = within(details).getByRole("list", { name: "Labels" });
+    expect(within(labels).getAllByRole("listitem")).toHaveLength(2);
+    expect(labels).toHaveTextContent("backend");
+    expect(labels).toHaveTextContent(unsafeLabel);
+    expect(within(labels).queryByRole("img")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Labels" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows an empty labels state and places Evidence directly after acceptance criteria", async () => {
+    renderPanel(story);
+
+    const details = screen.getByRole("region", { name: "Details" });
+    expect(within(details).getByText("No labels")).toBeInTheDocument();
+    expect(
+      within(details).queryByRole("list", { name: "Labels" }),
+    ).not.toBeInTheDocument();
+    const criteria = screen.getByRole("heading", {
+      name: /^Acceptance criteria/,
+    });
+    const evidence = await screen.findByRole("heading", { name: "Evidence" });
+    expect(criteria.parentElement?.nextElementSibling).toBe(
+      evidence.closest("section"),
+    );
+  });
+});
 
 describe("IssueDetailPanel subtasks", () => {
   it("requests deletion for the currently displayed issue", () => {
@@ -59,6 +94,7 @@ describe("IssueDetailPanel subtasks", () => {
         onClose={vi.fn()}
         onUpdate={vi.fn()}
         onEdit={vi.fn()}
+        onSaveEvidence={vi.fn()}
         onDelete={onDelete}
         onMakeSubtask={vi.fn()}
         onMakeStandalone={vi.fn()}
@@ -82,6 +118,7 @@ describe("IssueDetailPanel subtasks", () => {
         onClose={vi.fn()}
         onUpdate={vi.fn()}
         onEdit={vi.fn()}
+        onSaveEvidence={vi.fn()}
         onMakeSubtask={vi.fn()}
         onMakeStandalone={vi.fn()}
         onCreateSubtask={onCreateSubtask}
@@ -161,6 +198,7 @@ describe("IssueDetailPanel subtasks", () => {
         onClose={vi.fn()}
         onUpdate={vi.fn()}
         onEdit={vi.fn()}
+        onSaveEvidence={vi.fn()}
         onMakeSubtask={vi.fn()}
         onMakeStandalone={onMakeStandalone}
         onCreateSubtask={vi.fn()}
@@ -180,6 +218,7 @@ describe("IssueDetailPanel subtasks", () => {
         onClose={vi.fn()}
         onUpdate={vi.fn()}
         onEdit={vi.fn()}
+        onSaveEvidence={vi.fn()}
         onMakeSubtask={vi.fn()}
         onMakeStandalone={onMakeStandalone}
         onCreateSubtask={vi.fn()}
@@ -204,6 +243,7 @@ describe("IssueDetailPanel subtasks", () => {
         onClose={vi.fn()}
         onUpdate={vi.fn()}
         onEdit={vi.fn()}
+        onSaveEvidence={vi.fn()}
         onMakeSubtask={onMakeSubtask}
         onMakeStandalone={vi.fn()}
         onCreateSubtask={vi.fn()}

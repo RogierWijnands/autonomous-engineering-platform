@@ -22,9 +22,11 @@ export interface Issue {
   status: IssueStatus;
   labels: string[];
   acceptanceCriteria: string[];
+  evidence?: EvidenceDocument;
 }
 
 export type IssueDraft = Omit<
   Issue,
-  "key" | "projectId" | "status" | "parentIssueKey"
+  "key" | "projectId" | "status" | "parentIssueKey" | "evidence"
 >;
+import type { EvidenceDocument } from "./utils/evidence";

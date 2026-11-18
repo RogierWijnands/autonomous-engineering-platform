@@ -4,7 +4,7 @@
 
 This document describes the intended security boundaries for the local AEP. It
 is a design baseline, not a complete threat model and not evidence that
-security controls have already been implemented. The JSON files in `policies/`
+security controls have already been implemented. The JSON files in `aep/policies/`
 are configuration starting points; they provide no protection until code
 validates and enforces them.
 
@@ -34,18 +34,48 @@ validates and enforces them.
 5. **Human approval:** an approval is an explicit workflow decision and must
    be bound to the correct action and change set.
 
+The local simulator API and MCP server do not authenticate local processes.
+Their loopback bindings and host/origin checks reduce network and browser
+exposure but do not protect against untrusted local users or processes.
+MCP exposes only issue reads, evidence replacement with a conflict check, and
+the In Progress → Done transition; it must not be exposed across containers
+or networks until an authenticated and authorized boundary is designed.
+Issue content and evidence are untrusted and may contain prompt injection.
+Evidence images are embedded, restricted to bounded PNG, JPEG or WebP data,
+and must not contain secrets; evidence remains unencrypted in SQLite.
+The simulator stores form text as data using parameterized SQLite queries and
+renders it as React text rather than HTML. Evidence uses an allowlisted
+document format, validated on writes and database reads and again before the
+browser displays it or loads it into the editor; invalid evidence is reported
+instead of rendered. Only validated embedded images are accepted. These
+controls do not authenticate the API or make arbitrary local processes trusted.
+The browser also validates project and issue field shapes before using a
+simulator snapshot; text containing markup is preserved and rendered as text,
+not rejected merely for looking like code. MCP tool-handler responses append
+a notice that simulator data, images and errors are untrusted. The original
+JSON and images remain available. This notice is guidance to clients, not an
+enforced boundary or a guarantee against prompt injection.
+The simulator's execution webhook sends only the issue key and a new event ID
+to a configured loopback HTTP endpoint, without following redirects. It has no
+sender authentication or authorization, and the AEP receiver does not yet
+exist. This is a local development contract only: do not enable actual
+workflow execution until authentication, authorization, event deduplication,
+audit and policy checks are implemented. Separate user confirmations are
+distinct requests and can lead to concurrent execution of the same issue.
+
 ## Threats and intended controls
 
-| Threat | Intended control |
-|---|---|
-| Prompt injection through issues, code, or tool output | Treat external content as untrusted data; never allow it to change policy, permissions, or approval requirements. |
-| Unintended or harmful agent actions | Restrict agent tools and workspace; perform external side effects through controlled host-side adapters. |
-| Theft of GitHub credentials | Do not put GitHub tokens in the agent container, prompts, repository, or logs; allow only the host to use credentials. |
-| Container escape or access to host files | Do not mount the Docker socket or personal files; restrict capabilities, mounts, network, and resources. Exact Docker hardening still needs to be designed and tested. |
-| Unauthorized webhook or repeated delivery | Verify webhook authenticity, validate input, and make processing idempotent. The exact protocol and storage mechanism remain open decisions. |
-| Unwanted repository or PR changes | Restrict GitHub app/token permissions and allowed repository scope; require human PR review before merging. |
-| Loss or tampering of workflow/audit data | Use controlled database access, consistent writes, and appropriate backups; design retention and integrity controls before production use. |
-| Secrets in logs or agent output | Redact sensitive values, restrict log access, and prevent secrets from being passed to agents. |
+| Threat                                                | Intended control                                                                                                                                                         |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Prompt injection through issues, code, or tool output | Treat external content as untrusted data; never allow it to change policy, permissions, or approval requirements.                                                        |
+| Injection via forms or dynamic content                | Validate structured input at trust boundaries, render text with context-appropriate encoding, parameterize database queries, and never execute data as code or commands. |
+| Unintended or harmful agent actions                   | Restrict agent tools and workspace; perform external side effects through controlled host-side adapters.                                                                 |
+| Theft of GitHub credentials                           | Do not put GitHub tokens in the agent container, prompts, repository, or logs; allow only the host to use credentials.                                                   |
+| Container escape or access to host files              | Do not mount the Docker socket or personal files; restrict capabilities, mounts, network, and resources. Exact Docker hardening still needs to be designed and tested.   |
+| Unauthorized webhook or repeated delivery             | Verify webhook authenticity, validate input, and make processing idempotent. The exact protocol and storage mechanism remain open decisions.                             |
+| Unwanted repository or PR changes                     | Restrict GitHub app/token permissions and allowed repository scope; require human PR review before merging.                                                              |
+| Loss or tampering of workflow/audit data              | Use controlled database access, consistent writes, and appropriate backups; design retention and integrity controls before production use.                               |
+| Secrets in logs or agent output                       | Redact sensitive values, restrict log access, and prevent secrets from being passed to agents.                                                                           |
 
 ## Authorization and approval
 
@@ -54,7 +84,7 @@ validates and enforces them.
 - Require human approval for production-impacting changes and external
   side-effects according to policy.
 - Require approval for high-risk changes; the initial classification is in
-  `policies/risk-classification.json`.
+  `aep/policies/risk-classification.json`.
 - Record approvals with the actor, time, workflow, action, and change context.
   A change to the content under review invalidates the previous approval.
 - Agents must not be able to lower their own risk or approval status.
@@ -75,6 +105,32 @@ still need to be designed.
   known vulnerabilities, review changed code for security weaknesses, and test
   relevant security boundaries. Report unresolved findings explicitly.
 - Add focused unit tests by default for all newly built or changed behavior.
+- Keep form and loaded data as data, not HTML, script, SQL, shell commands, or
+  agent instructions. Validate structured content before it reaches a renderer
+  or editor, encode output for its actual context, and use parameterized
+  database queries. Avoid raw HTML and dynamic code execution; if a future
+  feature needs rich HTML or external URLs, design and test a restrictive
+  sanitization and URL policy before enabling it.
+- Test malicious markup, unsafe URLs and SQL metacharacters as well as normal
+  content through storage and retrieval. These controls do not replace
+  authentication, authorization, dependency audits, or agent isolation.
+
+## Prompt injection requirements
+
+- Treat all issue and project fields, evidence images, repository files,
+  MCP responses, tool output and errors as untrusted data. Do not let their
+  instructions change the authorized task, permissions, policies or approvals.
+- The future host must enforce tool and action authorization independently of
+  model output, deny actions outside the explicitly approved scope by default,
+  and require human review if scope or intent is ambiguous. It must not rely
+  on a model, a notice, or a keyword filter as the security boundary.
+- Label untrusted inputs when providing them to agents, minimize the content
+  and permissions supplied, and test adversarial instructions in text, images
+  and tool errors. Avoid copying secrets into agent context.
+- These are requirements for the future agent runner, not implemented
+  protections: do not enable real automated workflows until the host-side
+  authorization, isolation, approval and audit controls are implemented and
+  tested. No defense can guarantee detection of every prompt injection.
 
 ## Secrets and data
 
@@ -121,9 +177,13 @@ runs.
 - [ ] Docker network, capability, resource, and workspace cleanup policies.
 - [ ] Secure local secret management and tested log redaction.
 - [ ] Secret/configuration files are ignored; no real keys or sensitive
-  environment values are present in source, tests, command output, or logs.
+      environment values are present in source, tests, command output, or logs.
 - [ ] Durable and auditable storage for policy decisions and approvals.
 - [ ] Dependency vulnerability checks and security-focused code review/tests.
 - [ ] Focused unit tests for all newly built or changed behavior.
 - [ ] Tests for denied actions, prompt injection, and audit/policy storage failures.
+- [ ] Host-enforced tool authorization and adversarial prompt-injection tests;
+      untrusted-content notices alone are not sufficient.
+- [ ] Context-aware output encoding, parameterized queries, dynamic-content
+      validation, and injection regression tests at every applicable boundary.
 - [ ] Defined cancellation, timeout, retry, and agent-run recovery behavior.

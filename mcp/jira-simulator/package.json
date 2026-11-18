@@ -8,9 +8,9 @@
     "node": ">=24"
   },
   "scripts": {
-    "start": "concurrently --kill-others --names \"API,Vite\" --passthrough-arguments \"node api/server.ts\" \"vite --host 127.0.0.1 {@}\" --",
+    "start": "concurrently --kill-others --names \"API,Vite\" --passthrough-arguments \"nodemon --exitcrash --signal SIGTERM --watch api --watch src/utils --watch src/types.ts --ext ts,json --exec node api/server.ts\" \"vite --host 127.0.0.1 {@}\" --",
     "api": "node api/server.ts",
-    "test:api": "node --test api/*.test.ts",
+    "test:api": "node --test api/test/*.test.ts",
     "test:startup": "node --test test/startup.test.ts",
     "format": "prettier --write \"**/*.ts\"",
     "format:check": "prettier --check \"**/*.ts\"",
@@ -23,6 +23,11 @@
     "test:install-browsers": "playwright install chromium"
   },
   "dependencies": {
+    "@tiptap/extension-image": "^3.34.0",
+    "@tiptap/react": "^3.34.0",
+    "@tiptap/starter-kit": "^3.34.0",
+    "express": "^5.2.1",
+    "image-size": "^2.1.0",
     "lucide-react": "^0.468.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
@@ -33,12 +38,14 @@
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.12",
+    "@types/express": "^5.0.0",
     "@types/node": "^24.0.0",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",
     "concurrently": "^10.0.7",
     "jsdom": "^27.3.0",
+    "nodemon": "^3.1.14",
     "prettier": "^3.6.2",
     "typescript": "^5.7.3",
     "vite": "^6.0.7",

@@ -24,6 +24,9 @@ Implement the requested change with precise, minimal edits that follow existing 
   approval. Ask when scope or authorization is unclear.
 - Inspect relevant code and tests before editing.
 - Preserve existing behavior outside the requested change.
+- Organize API entrypoints, routes, and related functionality into readable,
+  logically scoped modules or folders. Keep shared security checks at their
+  common boundary; do not introduce unnecessary layers or indirection.
 - Write focused unit tests by default for every new or changed behavior. Do
   not omit tests merely because no test currently exists; introduce the
   smallest suitable test setup when needed. If behavior cannot reasonably be
@@ -131,11 +134,10 @@ Implement the requested change with precise, minimal edits that follow existing 
 
 **Code Comments and Documentation.**
 
-- Add concise, meaningful comments where they clarify important sections or
-  non-obvious implementation details, such as complex rules, security
-  decisions, assumptions, or non-obvious behavior.
-- Add short section comments only where they help developers navigate larger
-  files.
+- When creating or changing code, assess its logical blocks and add concise
+  section comments where they clarify non-obvious purpose, boundaries, or
+  behavior, including business rules, security decisions, and assumptions.
+  Do this in small files as well as larger ones when clarification is needed.
 - Keep comments concise, accurate, and written in plain, understandable language.
 - Avoid redundant comments that simply repeat what the code already clearly expresses.
 - Update existing comments whenever the related implementation changes. Never leave misleading or outdated comments behind.
