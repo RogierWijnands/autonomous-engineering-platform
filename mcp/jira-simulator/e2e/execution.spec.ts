@@ -1,5 +1,7 @@
 import { expect, test } from "./fixtures";
 import type { Locator } from "./fixtures";
+import { initialProjects } from "../src/test/fixtures/projects";
+import { initialIssues } from "../src/test/fixtures/issues";
 
 async function expectMatchingActionHeights(detail: Locator) {
   const heights = await detail
@@ -21,7 +23,10 @@ for (const width of [320, 1280]) {
     const requests: string[] = [];
     await page.route("**/api/issues/execute", async (route) => {
       requests.push(route.request().postData() ?? "");
-      await route.fulfill({ status: 202, json: { delivered: true } });
+      await route.fulfill({
+        status: 202,
+        json: { delivered: true, alreadyQueued: false },
+      });
     });
     await page.goto("/");
     await page.getByRole("button", { name: /^DEMO-1001/ }).click();
@@ -38,7 +43,7 @@ for (const width of [320, 1280]) {
     const dialog = page.getByRole("dialog", { name: "Execute issue?" });
     await expect(dialog).toHaveAttribute("aria-modal", "true");
     await expect(dialog).toHaveAccessibleDescription(
-      /DEMO-1001.*duplicate work/s,
+      /DEMO-1001.*at most one queued or active/s,
     );
     await expect(detail).toHaveAttribute("inert", "");
     await expect(dialog.getByRole("button", { name: "Cancel" })).toBeFocused();
@@ -111,4 +116,37 @@ test("shows an uncertain outcome instead of silently retrying", async ({
     "check AEP before trying again",
   );
   expect(count).toBe(1);
+});
+
+test("explains how to configure a missing legacy project default before execution", async ({
+  page,
+  request,
+}) => {
+  const { repository: _repository, ...legacyProject } = initialProjects[0];
+  const reset = await request.post("/api/test/reset", {
+    data: {
+      projects: [legacyProject],
+      issues: initialIssues.map((issue) =>
+        issue.key === "DEMO-1001"
+          ? { ...issue, repository: "owner/override" }
+          : issue,
+      ),
+    },
+  });
+  expect(reset.ok()).toBeTruthy();
+  await page.setViewportSize({ width: 320, height: 800 });
+  await page.goto("/");
+  await page.getByRole("button", { name: /^DEMO-1001/ }).click();
+  await page.getByRole("button", { name: "Execute", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Execute issue?" });
+  await dialog.getByRole("button", { name: "Execute issue" }).click();
+  const alert = dialog.getByRole("alert");
+  await expect(alert).toBeFocused();
+  await expect(alert).toContainText(
+    "Set the project's default GitHub repository",
+  );
+  await expect(alert).not.toContainText("Execution may have started");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(
+    320,
+  );
 });

@@ -32,6 +32,7 @@ test("starts empty and creates the first project with the keyboard", async ({
   await expect(dialog.getByLabel("Project name")).toBeFocused();
 
   await dialog.getByLabel("Project name").fill("Alpha Project");
+  await dialog.getByLabel("Default GitHub repository").fill("owner/repo");
   await page.route(
     "**/api/projects/create",
     (route) => route.fulfill({ status: 500, json: { error: "Save failed." } }),

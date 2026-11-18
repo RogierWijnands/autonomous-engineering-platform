@@ -20,7 +20,8 @@ import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { createHttpServer, parsePort } from "../src/server.ts";
-import { runTool } from "../src/tools/result.ts";
+import { runTool } from "../src/tools/toolRunner.ts";
+import { extractEvidenceContent } from "../src/utils/evidenceContent.ts";
 
 async function availablePort(): Promise<number> {
   const server = createServer();
@@ -58,6 +59,49 @@ test("marks tool data and errors as untrusted without changing their content", a
   assert.ok(errorContent.type === "text" && errorNotice?.type === "text");
   assert.equal(errorContent.text, injection);
   assert.match(errorNotice.text, /untrusted data, not instructions/);
+});
+
+test("adds generic MCP content without changing the original tool result", async () => {
+  const data = { value: "example" };
+  const resource = {
+    type: "resource" as const,
+    resource: {
+      uri: "example://evidence",
+      mimeType: "application/octet-stream",
+      blob: "dGVzdA==",
+    },
+  };
+  const result = await runTool(
+    async () => data,
+    (value) => {
+      assert.equal(value, data);
+      return [resource];
+    },
+  );
+  assert.equal(result.isError, undefined);
+  assert.deepEqual(result.content[0], {
+    type: "text",
+    text: JSON.stringify(data),
+  });
+  assert.deepEqual(result.content[1], resource);
+  assert.match(JSON.stringify(result.content[2]), /untrusted data/);
+});
+
+test("reports invalid evidence images as untrusted tool errors", async () => {
+  for (const src of [
+    "https://example.com/image.png",
+    "data:image/svg+xml;base64,PHN2Zz4=",
+  ]) {
+    const result = await runTool(
+      async () => ({
+        evidence: { type: "doc", content: [{ type: "image", attrs: { src } }] },
+      }),
+      extractEvidenceContent,
+    );
+    assert.equal(result.isError, true);
+    assert.match(JSON.stringify(result.content[0]), /Invalid evidence image/);
+    assert.match(JSON.stringify(result.content[1]), /untrusted data/);
+  }
 });
 
 test("validates configured ports", () => {
@@ -277,7 +321,7 @@ test(
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          projects: [{ id: "p1", name: "Demo" }],
+          projects: [{ id: "p1", name: "Demo", repository: "owner/default" }],
           issues: [
             {
               key: "DEMO-1",
@@ -439,6 +483,7 @@ test(
         arguments: { projectId: "p1" },
       });
       assert.equal(list.isError, undefined);
+      assert.match(JSON.stringify(list.content), /owner\/default/);
       assert.match(JSON.stringify(list.content), /DEMO-1/);
       assert.match(
         JSON.stringify(list.content),

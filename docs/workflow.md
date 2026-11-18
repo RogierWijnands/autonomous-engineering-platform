@@ -3,10 +3,10 @@
 ## Status
 
 This document describes the intended end-to-end flow. The host, initial
-database model, schema migration, persistent simulator UI and API, and local
-issue MCP server are in place. The simulator sends confirmed local execution
-webhooks, but the AEP receiver, workflow state machine, isolated agent
-execution, and GitHub integration are not yet implemented.
+database model, authenticated webhook intake, persistent queue and read-only
+dashboard, simulator UI and API, and local issue MCP server are in place.
+No worker, policy engine, isolated agent execution, or GitHub integration is
+implemented. See [setup](jira-workflow-setup.md) for the actual current flow.
 
 ## Overview
 
@@ -32,11 +32,12 @@ Feature branch → draft PR → human review
 
 Jira Simulator manages local issues and exposes read, evidence-update and
 completion tools through MCP. When a user confirms Execute, it sends a minimal
-webhook to the configured local endpoint. The future AEP API must authenticate
-the sender, validate the payload, and
-create a durable workflow record. Redelivery of the same event should not cause
-an unintended duplicate execution. A separately confirmed request has a new
-event ID and may start another execution even if one is already running.
+signed webhook to the configured local endpoint. AEP authenticates the
+sender, validates the selected project-default or issue-override repository
+from the simulator and creates a durable workflow record with seven
+pending steps. A replay returns the original workflow; a new request for an
+already queued, active or paused issue returns that same workflow. Terminal
+workflows permit a new event to create a new workflow. No step is run yet.
 
 ### 2. Establish scope and policy
 
@@ -138,8 +139,8 @@ results remaining identifiable.
 
 ## Open decisions
 
-- Exact state names and allowed transitions.
-- Criteria for a valid Jira status transition and event deduplication.
+- Allowed workflow transitions and worker recovery.
+- Criteria for future automatic Jira status transitions.
 - Approval interface, permissions, and expiration behavior.
 - Agent contracts, context selection, and allowed CLI commands.
 - Retry behavior per phase and handling of partial results.

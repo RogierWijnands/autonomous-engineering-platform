@@ -16,9 +16,9 @@ vi.mock("./utils/api", async (importOriginal) => ({
       case "state":
         return store.snapshot();
       case "projects/create":
-        return store.createProject(data?.name as string);
+        return store.createProject(data?.name, data?.repository);
       case "projects/update":
-        return store.updateProject(data?.id as string, data?.name as string);
+        return store.updateProject(data?.id, data?.name, data?.repository);
       case "projects/delete":
         return store.deleteProject(
           data?.id as string,
@@ -104,7 +104,7 @@ describe("Jira Simulator", () => {
     );
     await user.click(screen.getByRole("button", { name: "Save evidence" }));
     expect(
-      await screen.findByRole("button", { name: "Edit evidence" }),
+      await screen.findByRole("button", { name: "Add evidence" }),
     ).toHaveFocus();
     const issue = store
       .snapshot()
@@ -192,6 +192,12 @@ describe("Jira Simulator", () => {
     await user.type(
       within(dialog).getByRole("textbox", { name: /Project name/ }),
       "Alpha Project",
+    );
+    await user.type(
+      within(dialog).getByRole("textbox", {
+        name: "Default GitHub repository",
+      }),
+      "owner/repo",
     );
     await user.click(
       within(dialog).getByRole("button", { name: "Create project" }),
@@ -364,6 +370,12 @@ describe("Jira Simulator", () => {
     await user.type(
       within(dialog).getByRole("textbox", { name: /Project name/ }),
       "Alpha Project",
+    );
+    await user.type(
+      within(dialog).getByRole("textbox", {
+        name: "Default GitHub repository",
+      }),
+      "owner/repo",
     );
     await user.click(
       within(dialog).getByRole("button", { name: "Create project" }),
@@ -993,6 +1005,12 @@ describe("Jira Simulator", () => {
 
     await user.clear(projectNameField);
     await user.type(projectNameField, projectName);
+    await user.type(
+      within(dialog).getByRole("textbox", {
+        name: "Default GitHub repository",
+      }),
+      "owner/repo",
+    );
     await user.click(
       within(dialog).getByRole("button", { name: "Create project" }),
     );

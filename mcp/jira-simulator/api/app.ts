@@ -11,10 +11,13 @@ export function createApp(
   port: number,
   store: ReturnType<typeof createStore>,
   webhookUrl = process.env.JIRA_EXECUTION_WEBHOOK_URL,
+  webhookSecret = process.env.AEP_WEBHOOK_SECRET,
 ) {
   const app = express();
-  const sendJiraIssueExecutionWebhook =
-    createExecuteJiraIssueWebhook(webhookUrl);
+  const sendJiraIssueExecutionWebhook = createExecuteJiraIssueWebhook(
+    webhookUrl,
+    webhookSecret,
+  );
 
   // Keep route matching compatible with the original API contract.
   app.disable("x-powered-by");

@@ -8,11 +8,120 @@ import { createStore, InputError } from "../database/store.ts";
 import { initialProjects } from "../../src/test/fixtures/projects.ts";
 import { initialIssues } from "../../src/test/fixtures/issues.ts";
 
+test("persists project repositories and optional issue overrides without losing unrelated updates", () => {
+  const store = createStore(":memory:");
+  try {
+    const project = store.createProject("Alpha", "owner/default").project;
+    const issue = store.createIssue(project.id, {
+      summary: "Issue",
+      description: "",
+      issueType: "Task",
+      priority: "Medium",
+      labels: [],
+      acceptanceCriteria: [],
+      repository: "owner/override",
+    }).issue;
+    assert.equal(store.getProject(project.id).repository, "owner/default");
+    assert.equal(store.getIssue(issue.key).repository, "owner/override");
+    store.updateProject(project.id, "Beta");
+    const renamed = store.snapshot().issues[0];
+    assert.equal(store.getProject(project.id).repository, "owner/default");
+    assert.equal(renamed.repository, "owner/override");
+    const { repository: _ignored, ...withoutRepository } = renamed;
+    store.updateIssue(renamed.key, withoutRepository);
+    assert.equal(store.getIssue(renamed.key).repository, "owner/override");
+    store.updateIssue(renamed.key, { ...renamed, repository: "" });
+    assert.equal(store.getIssue(renamed.key).repository, undefined);
+    assert.throws(() => store.updateProject(project.id, "Beta", ""), {
+      status: 400,
+    });
+    assert.equal(store.getProject(project.id).repository, "owner/default");
+    for (const repository of [
+      "https://example.com/repo",
+      "../evil",
+      "owner/.",
+      "owner/repo.git",
+      "<script>",
+    ]) {
+      assert.throws(() => store.updateProject(project.id, "Beta", repository), {
+        status: 400,
+      });
+      assert.throws(
+        () => store.updateIssue(renamed.key, { ...renamed, repository }),
+        { status: 400 },
+      );
+    }
+  } finally {
+    store.close();
+  }
+});
+
+test("requires a valid repository for project creation and legacy project updates", () => {
+  const store = createStore(":memory:");
+  try {
+    for (const repository of [undefined, "", " ", "owner/.", null]) {
+      assert.throws(() => store.createProject("Alpha", repository), {
+        status: 400,
+      });
+    }
+    store.resetTestData({
+      projects: [{ id: "legacy", name: "Legacy" }],
+      issues: [],
+    });
+    assert.throws(() => store.updateProject("legacy", "Renamed"), {
+      status: 400,
+    });
+    assert.equal(store.getProject("legacy").name, "Legacy");
+    store.updateProject("legacy", "Legacy", "owner/repo");
+    assert.equal(store.getProject("legacy").repository, "owner/repo");
+  } finally {
+    store.close();
+  }
+});
+
+test("migrates an existing project database without losing its projects or issues", () => {
+  const directory = mkdtempSync(join(tmpdir(), "jira-repo-migration-"));
+  const path = join(directory, "test.sqlite");
+  try {
+    const old = new DatabaseSync(path);
+    old.exec(
+      "CREATE TABLE projects (id TEXT PRIMARY KEY, name TEXT NOT NULL); INSERT INTO projects VALUES ('legacy', 'Legacy'); CREATE TABLE issues (key TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id), data TEXT NOT NULL);",
+    );
+    const legacyIssue = {
+      ...initialIssues[0],
+      key: "LEGACY-1001",
+      projectId: "legacy",
+    };
+    old
+      .prepare("INSERT INTO issues VALUES (?, ?, ?)")
+      .run(legacyIssue.key, legacyIssue.projectId, JSON.stringify(legacyIssue));
+    old.close();
+    const store = createStore(path);
+    try {
+      assert.deepEqual(store.snapshot(), {
+        projects: [{ id: "legacy", name: "Legacy" }],
+        issues: [legacyIssue],
+      });
+      store.updateProject("legacy", "Legacy", "owner/repo");
+    } finally {
+      store.close();
+    }
+    const reopened = createStore(path);
+    try {
+      assert.equal(reopened.getProject("legacy").repository, "owner/repo");
+    } finally {
+      reopened.close();
+    }
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test("stores SQL and markup payloads as literal project and issue data", () => {
   const store = createStore(":memory:");
   try {
     const payload = "Demo'; DROP TABLE issues; -- <script>alert(1)</script>";
-    const project = store.createProject(payload).project;
+    const project = store.createProject(payload, "owner/repo").project;
     const issue = store.createIssue(project.id, {
       summary: payload,
       description: payload,
@@ -37,7 +146,7 @@ test("stores SQL and markup payloads as literal project and issue data", () => {
 test("creates issues with a validated initial status and preserves the default", () => {
   const store = createStore(":memory:");
   try {
-    const project = store.createProject("Alpha").project;
+    const project = store.createProject("Alpha", "owner/repo").project;
     const draft = {
       summary: "Issue",
       description: "",
@@ -174,7 +283,7 @@ test("preserves existing seeded databases and user changes", () => {
     let store = createStore(path);
 
     store.resetTestData({ projects: initialProjects, issues: initialIssues });
-    store.createProject("User Project");
+    store.createProject("User Project", "owner/repo");
 
     const before = store.snapshot();
 
@@ -205,7 +314,7 @@ test("persists projects, issues and their relationships across restarts", () => 
 
     assert.deepEqual(store.snapshot(), { projects: [], issues: [] });
 
-    const project = store.createProject("Alpha Project").project;
+    const project = store.createProject("Alpha Project", "owner/repo").project;
     const draft = {
       summary: "Story",
       description: "",
@@ -290,7 +399,7 @@ test("rejects invalid input and leaves transactions unchanged", () => {
   try {
     store.resetTestData({ projects: initialProjects, issues: initialIssues });
 
-    const project = store.createProject("Alpha Project").project;
+    const project = store.createProject("Alpha Project", "owner/repo").project;
     const before = store.snapshot();
 
     assert.throws(
@@ -347,7 +456,7 @@ test("reports invalid stored issue data rather than returning an invalid snapsho
 
   try {
     const store = createStore(path);
-    const project = store.createProject("Alpha Project").project;
+    const project = store.createProject("Alpha Project", "owner/repo").project;
 
     store.close();
 
@@ -424,7 +533,7 @@ test("deletes a project atomically without affecting other projects", () => {
   try {
     store.resetTestData({ projects: initialProjects, issues: initialIssues });
 
-    const other = store.createProject("Other Project").project;
+    const other = store.createProject("Other Project", "owner/repo").project;
     const before = store.snapshot();
 
     assert.throws(() => store.deleteProject("project-demo", []), {

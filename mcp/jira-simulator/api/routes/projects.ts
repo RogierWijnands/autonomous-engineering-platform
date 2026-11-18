@@ -6,11 +6,11 @@ export function projectRoutes(store: ReturnType<typeof createStore>) {
 
   router.post("/projects/create", (req, res) => {
     const payload: Record<string, unknown> = req.body;
-    res.json(store.createProject(payload.name));
+    res.json(store.createProject(payload.name, payload.repository));
   });
   router.post("/projects/update", (req, res) => {
     const payload: Record<string, unknown> = req.body;
-    res.json(store.updateProject(payload.id, payload.name));
+    res.json(store.updateProject(payload.id, payload.name, payload.repository));
   });
   // The caller supplies the related issue keys it confirmed for deletion.
   router.post("/projects/delete", (req, res) => {

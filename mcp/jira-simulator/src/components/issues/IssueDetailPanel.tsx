@@ -26,6 +26,7 @@ interface IssueDetailPanelProps {
   parentIssue?: Issue;
   subtasks: Issue[];
   projectName: string;
+  projectRepository?: string;
   focusEditAction?: boolean;
   focusSubtaskAction?: boolean;
   focusStandaloneAction?: boolean;
@@ -52,6 +53,7 @@ export function IssueDetailPanel({
   parentIssue,
   subtasks,
   projectName,
+  projectRepository,
   focusEditAction = false,
   focusSubtaskAction = false,
   focusStandaloneAction = false,
@@ -321,6 +323,16 @@ export function IssueDetailPanel({
             aria-labelledby="issue-details-heading"
           >
             <h3 id="issue-details-heading">Details</h3>
+            <div className="detail-property">
+              <span>GitHub repository</span>
+              <span className="detail-repository">
+                {issue.repository
+                  ? `${issue.repository} (issue override)`
+                  : projectRepository
+                    ? `${projectRepository} (project default)`
+                    : "Not configured"}
+              </span>
+            </div>
             <div className="detail-property">
               <span>Issue type</span>
               <strong>

@@ -7,9 +7,10 @@ export type IssueView = "board" | "list";
 export interface Project {
   id: string;
   name: string;
+  repository?: string;
 }
 
-export type ProjectDraft = Pick<Project, "name">;
+export type ProjectDraft = Pick<Project, "name" | "repository">;
 
 export interface Issue {
   key: string;
@@ -22,6 +23,7 @@ export interface Issue {
   status: IssueStatus;
   labels: string[];
   acceptanceCriteria: string[];
+  repository?: string;
   evidence?: EvidenceDocument;
 }
 

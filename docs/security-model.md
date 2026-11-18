@@ -55,13 +55,19 @@ not rejected merely for looking like code. MCP tool-handler responses append
 a notice that simulator data, images and errors are untrusted. The original
 JSON and images remain available. This notice is guidance to clients, not an
 enforced boundary or a guarantee against prompt injection.
-The simulator's execution webhook sends only the issue key and a new event ID
-to a configured loopback HTTP endpoint, without following redirects. It has no
-sender authentication or authorization, and the AEP receiver does not yet
-exist. This is a local development contract only: do not enable actual
-workflow execution until authentication, authorization, event deduplication,
-audit and policy checks are implemented. Separate user confirmations are
-distinct requests and can lead to concurrent execution of the same issue.
+The simulator's execution webhook sends the issue key, selected repository and a new event ID
+to a configured loopback HTTP endpoint, without following redirects. The
+sender signs the raw JSON with HMAC-SHA256 and AEP validates it with a shared
+secret. Event receipts and a database uniqueness constraint prevent duplicate
+active requests; the read-only dashboard requires a separate bearer token.
+Both services remain local development boundaries, not multi-user isolation.
+Do not enable actual agent execution until host authorization, isolation,
+approval and policy controls are implemented and tested.
+Repository selections are editable through the unauthenticated local simulator
+API. HMAC protects the request in transit, not the integrity of its source or
+the user's authorization. Validate the name as data, and enforce an independent
+host-side repository allowlist and approval before any GitHub action or agent
+execution; a valid `owner/repository` is not proof of authorization.
 
 ## Threats and intended controls
 
@@ -72,7 +78,7 @@ distinct requests and can lead to concurrent execution of the same issue.
 | Unintended or harmful agent actions                   | Restrict agent tools and workspace; perform external side effects through controlled host-side adapters.                                                                 |
 | Theft of GitHub credentials                           | Do not put GitHub tokens in the agent container, prompts, repository, or logs; allow only the host to use credentials.                                                   |
 | Container escape or access to host files              | Do not mount the Docker socket or personal files; restrict capabilities, mounts, network, and resources. Exact Docker hardening still needs to be designed and tested.   |
-| Unauthorized webhook or repeated delivery             | Verify webhook authenticity, validate input, and make processing idempotent. The exact protocol and storage mechanism remain open decisions.                             |
+| Unauthorized webhook or repeated delivery             | HMAC authentication, bounded input, event receipts and a PostgreSQL unique active-issue index; shared local secrets are not multi-user authorization.                    |
 | Unwanted repository or PR changes                     | Restrict GitHub app/token permissions and allowed repository scope; require human PR review before merging.                                                              |
 | Loss or tampering of workflow/audit data              | Use controlled database access, consistent writes, and appropriate backups; design retention and integrity controls before production use.                               |
 | Secrets in logs or agent output                       | Redact sensitive values, restrict log access, and prevent secrets from being passed to agents.                                                                           |

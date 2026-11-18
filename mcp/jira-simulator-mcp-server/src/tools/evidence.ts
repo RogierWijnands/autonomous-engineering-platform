@@ -5,7 +5,7 @@ import {
   keySchema,
   singleIssueSchema,
 } from "../jira/schemas.ts";
-import { runTool } from "./result.ts";
+import { runTool } from "./toolRunner.ts";
 
 export function registerEvidenceTools(server: McpServer, request: JiraClient) {
   // The expected document prevents replacing a concurrent evidence update.

@@ -1117,6 +1117,10 @@ p {
   font-size: 10px;
   font-weight: 500;
 }
+.detail-repository {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 .detail-labels {
   min-width: 0;
   min-height: 19px;

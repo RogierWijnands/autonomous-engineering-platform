@@ -1,7 +1,5 @@
 namespace Aep.Workflows.Workflows;
 
-using Aep.Workflows.Agents;
-
 public sealed class WorkflowStep
 {
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -17,7 +15,6 @@ public sealed class WorkflowStep
     public string? ErrorCode { get; set; }
 
     public Workflow Workflow { get; set; } = null!;
-    public ICollection<AgentExecution> AgentExecutions { get; set; } = new List<AgentExecution>();
 }
 
 public enum WorkflowStepStatus

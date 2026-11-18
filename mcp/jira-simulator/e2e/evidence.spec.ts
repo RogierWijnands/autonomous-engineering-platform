@@ -11,6 +11,55 @@ async function expectEmptyEvidenceGap(detail: Locator) {
   expect(buttonBox.y - (textBox.y + textBox.height)).toBeGreaterThanOrEqual(8);
 }
 
+test("shows Add evidence after clearing saved text with Backspace", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 800 });
+  await page.goto("/");
+  await page.getByRole("button", { name: /^DEMO-1001/ }).click();
+  const detail = page.getByRole("dialog", {
+    name: "Add health check endpoint",
+  });
+  await detail.getByRole("button", { name: "Add evidence" }).click();
+  const editor = detail.getByRole("textbox", { name: "Evidence editor" });
+  await editor.fill("Verification passed");
+  await detail.getByRole("button", { name: "Save evidence" }).click();
+  await detail.getByRole("button", { name: "Edit evidence" }).click();
+  await editor.press("ControlOrMeta+A");
+  await editor.press("Backspace");
+  await detail.getByRole("button", { name: "Cancel" }).click();
+  await expect(
+    detail.getByRole("button", { name: "Edit evidence" }),
+  ).toBeFocused();
+  await expect(detail.locator(".evidence-content")).toHaveText(
+    "Verification passed",
+  );
+  await detail.getByRole("button", { name: "Edit evidence" }).click();
+  await editor.press("ControlOrMeta+A");
+  await editor.press("Backspace");
+  await detail.getByRole("button", { name: "Save evidence" }).click();
+  const add = detail.getByRole("button", { name: "Add evidence" });
+  await expect(add).toBeFocused();
+  await expect(detail.getByText("No evidence added.")).toBeVisible();
+  await expectEmptyEvidenceGap(detail);
+
+  await add.click();
+  await editor.fill("   ");
+  await detail.getByRole("button", { name: "Save evidence" }).click();
+  await expect(add).toBeFocused();
+  await expect(detail.getByText("No evidence added.")).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(
+    320,
+  );
+
+  await page.reload();
+  await page.getByRole("button", { name: /^DEMO-1001/ }).click();
+  await expect(
+    page.getByRole("button", { name: "Add evidence" }),
+  ).toBeVisible();
+  await expect(page.getByText("No evidence added.")).toBeVisible();
+});
+
 test("keeps stored form and evidence markup as inert text after reload", async ({
   page,
 }) => {

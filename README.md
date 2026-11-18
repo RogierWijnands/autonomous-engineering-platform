@@ -38,8 +38,8 @@ reviews the implementation afterward. Both UI/UX stages report not applicable
 when no user-facing interface changes.
 
 Jira Simulator runs locally with a Node.js API and SQLite persistence. Its
-separate MCP server exposes bounded issue tools; AEP integration is not yet
-implemented.
+separate MCP server exposes bounded issue tools. AEP accepts authenticated
+execution requests and records a durable queue, but does not run agents yet.
 The AEP also runs locally. Only model calls and the GitHub integration require
 internet access.
 
@@ -57,15 +57,15 @@ internet access.
 | --------------- | -------------------------------------------------- |
 | Orchestrator    | .NET 10 LTS                                        |
 | API             | ASP.NET Core                                       |
-| Workflow engine | Custom persisted state machine                     |
+| Workflow engine | Persisted queue; state machine planned             |
 | Database        | PostgreSQL 17                                      |
 | ORM             | EF Core + Npgsql                                   |
-| Agent runtime   | GitHub Copilot CLI                                 |
+| Agent runtime   | GitHub Copilot CLI (planned)                       |
 | MCP server      | TypeScript + Express + official MCP SDK            |
 | Jira Simulator  | React + TypeScript, Node.js 24 + Express + SQLite  |
-| Agent isolation | Docker                                             |
+| Agent isolation | Docker (planned)                                   |
 | Source control  | GitHub                                             |
-| Logging         | Serilog                                            |
+| Logging         | ASP.NET Core logging                               |
 | Tests           | xUnit (.NET), Vitest + Testing Library (simulator) |
 
 ## Workflow
@@ -73,8 +73,10 @@ internet access.
 1. An issue is created in Jira Simulator.
 2. A user confirms **Execute** in its details; the simulator sends an execution
    request to the AEP Orchestrator via a webhook.
-3. The orchestrator checks policies, risk, and required approvals.
-4. Specialized agents analyze and design the work. For interface changes,
+3. AEP authenticates the webhook, selects the configured repository and queues
+   the seven planned steps without starting them.
+4. In a future runtime, the orchestrator checks policies, risk and approvals.
+   Specialized agents analyze and design the work. For interface changes,
    UI/UX provides a design handoff before development and reviews the completed
    interface before testing.
 5. The .NET host manages the GitHub integration and creates a feature branch
@@ -84,8 +86,7 @@ internet access.
 ## Repository structure
 
 - `aep/src/Aep/` — one .NET web project, organized into `Controllers/`, `Models/`,
-  `Services/`, `BackgroundServices/`, `Database/`, and
-  `Integrations/`.
+  `Services/`, `Database/`, and `Integrations/`.
 - `aep/src/Aep/Aep.sln` — solution for the .NET application and `aep/tests/Aep.Tests/`.
 - `mcp/jira-simulator/` — standalone Jira Simulator UI and API.
 - `mcp/jira-simulator-mcp-server/` — local Node.js MCP server for Jira issues.
@@ -106,10 +107,20 @@ internet access.
 ## Local database
 
 Copy `.env.example` to `.env` in the repository root and set a unique
-`POSTGRES_PASSWORD`. The local `.env` file is ignored by Git. Start PostgreSQL
+`POSTGRES_PASSWORD`, plus independent `AEP_WEBHOOK_SECRET` and
+`AEP_DASHBOARD_TOKEN` values of at least 32 UTF-8 bytes each. The local `.env`
+file is ignored by Git. Configure the required Jira project repository in the
+project form; an issue can optionally override it. See
+[Jira workflow setup](docs/jira-workflow-setup.md). Start PostgreSQL
 from the repository root with `npm run db:up`; use `npm run db:logs` to follow
 its logs and `npm run db:down` to stop it. PostgreSQL listens only on
 `127.0.0.1:5432`.
+
+The webhook and dashboard values in `.env.example` are deliberately short
+placeholders, not usable secrets. Generate two different random values locally,
+for example with `node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))"`
+run twice; put one in each field without sharing or committing them. Restart the
+local services after changing either value.
 
 The EF Core model is in `aep/src/Aep/Models/`; its PostgreSQL context and migrations
 are in `aep/src/Aep/Database/`. Non-secret PostgreSQL connection settings (host,
@@ -117,9 +128,9 @@ port, database, and username) are in `aep/src/Aep/appsettings.json`. The `startu
 and `db:migrate` package scripts load the password from the root `.env`; the
 .NET application combines it with those settings.
 You can override the resulting connection string with `ConnectionStrings__Aep`.
-Agent prompts, outputs, and tool results belong in an artifact store; the
-database model keeps bounded metadata, hashes, statuses, and artifact
-references instead. Audit events are append-only through the EF Core context.
+Agent prompts, outputs, and tool results belong in a future artifact store;
+the current database keeps workflow and event history metadata. Event history
+is append-only through the EF Core context.
 
 Install dependencies once in the repository root, `mcp/jira-simulator/`, and
 `mcp/jira-simulator-mcp-server/` with `npm install` in each directory.
@@ -128,7 +139,8 @@ the Jira Simulator Node.js API and Vite frontend, and the MCP server together. T
 command starts the simulator's `npm run start`, which starts both the API and
 frontend; do not start a second API separately. The simulator is available at
 `http://127.0.0.1:5173/`, and MCP at `http://127.0.0.1:3002/mcp`;
-press Ctrl+C to stop the AEP, simulator and MCP server. The app
+the authenticated AEP dashboard is at `http://localhost:5062/`.
+Press Ctrl+C to stop the AEP, simulator and MCP server. The app
 applies checked-in EF Core migrations before accepting requests. `npm run startup`
 starts only the AEP (PostgreSQL must already be running); `npm run db:migrate`
 starts PostgreSQL if needed and applies migrations explicitly. Run
@@ -232,10 +244,11 @@ are stopped. The
 database and its SQLite sidecar files are ignored by Git. Deletions are
 permanent; restore from a backup if deleted data is needed again.
 
-Issue details offer **Execute** for any issue. Confirmation warns that the
-simulator cannot check AEP's running workflows and a new request can execute
-an already-running issue again. A successful response means only that the
-configured webhook endpoint accepted the request, not that execution started.
+Issue details offer **Execute** for any issue, regardless of board status.
+AEP returns the existing workflow if it is queued, active or paused; after
+completion, failure or cancellation a new request may create another workflow.
+A successful response means only that the request was durably accepted, not
+that execution started.
 If delivery is uncertain, check AEP before trying again; the simulator does not
 retry automatically or change the issue status.
 
@@ -244,19 +257,17 @@ The simulator sends one JSON `POST` to
 with `JIRA_EXECUTION_WEBHOOK_URL` in the simulator process environment; only
 credential-free HTTP URLs on `127.0.0.1` without query strings or fragments
 are accepted, and redirects are not followed. Each confirmation generates a
-new UUID and sends only
-`{"event":"issue.execution_requested","eventId":"<uuid>","issueKey":"<key>"}`.
-The provisional contract allows a future AEP receiver to load issue details
-separately. The .NET receiver and workflow are not implemented yet, so the
-request currently fails unless a compatible local receiver is running.
-The webhook is not authenticated; it is for local development only and must
-not trigger real workflows until sender authentication, authorization,
-deduplication of redelivery, audit and policy checks are implemented. Distinct
-confirmed requests deliberately have different event IDs.
+new UUID and sends the issue key and selected project-default or issue-override
+repository in the signed request.
+The sender signs the exact body with HMAC-SHA256 using `AEP_WEBHOOK_SECRET`;
+the receiver validates it and loads the issue from the local simulator API.
+Distinct confirmations have distinct event IDs. AEP queues work only: agent
+execution, policy enforcement, approvals and GitHub actions are not implemented.
 
 Issue details show labels in **Details**
 and an independent **Evidence** section below the acceptance criteria. Use
-**Add evidence** for a new document or **Edit evidence** for an existing one.
+**Add evidence** when no text or images are present, including after saving an
+empty or whitespace-only document; otherwise use **Edit evidence**.
 Its editor supports bold, italic, bullets and up to three
 embedded static PNG, JPEG or WebP images, each at most 512,000 bytes and 4096 by
 4096 pixels. A meaningful image description is optional but recommended for
@@ -331,6 +342,9 @@ images and errors as untrusted. The first text item remains the original JSON
 or error, and evidence images remain separate image items. This notice does
 not prevent prompt injection or authorize actions; clients must enforce their
 own task, permission and approval boundaries.
+The generic tool runner delegates extra MCP content to an extractor. The
+evidence extractor currently handles only the supported images; other file
+types require explicit validation and client compatibility before being added.
 
 The simulator API supplies `GET /api/issues` (optional `projectId` query),
 `GET /api/issues/:key`, `POST /api/issues/evidence` and

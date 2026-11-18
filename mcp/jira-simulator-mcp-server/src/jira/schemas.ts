@@ -11,7 +11,13 @@ const issueSchema = z
   .passthrough();
 
 export const stateSchema = z.object({
-  projects: z.array(z.object({ id: z.string(), name: z.string() })),
+  projects: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      repository: z.string().optional(),
+    }),
+  ),
   issues: z.array(issueSchema),
 });
 export const singleIssueSchema = z.object({ issue: issueSchema });

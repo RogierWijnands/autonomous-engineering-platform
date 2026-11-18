@@ -14,12 +14,12 @@ React UI backed by a local TypeScript Node.js API and SQLite database. Projects
 can be created, edited and deleted, and issues can be moved between board statuses;
 Stories can have Task-only subtasks linked to their parent issue. A separate
 local MCP server exposes issue reads, evidence updates and completion. The
-simulator can send a user-confirmed execution webhook, but the AEP receiver
-and workflow are not implemented. The
-issue-processing flow and most runtime security controls still need to be
-built and tested.
+simulator sends a signed user-confirmed execution webhook to AEP, which stores
+a deduplicated workflow queue and offers an authenticated local dashboard.
+The agent worker and most runtime security controls still need to be built
+and tested. See [Jira workflow setup](jira-workflow-setup.md).
 The `aep/tests/Aep.Tests/` xUnit project covers PostgreSQL configuration handling
-and append-only audit-event safeguards without requiring a running database.
+and append-only event-history safeguards without requiring a running database.
 
 ## Design principles
 
@@ -39,13 +39,13 @@ and append-only audit-event safeguards without requiring a running database.
 
 ## Components and responsibilities
 
-| Component        | Responsibility                                                                                                                             |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `Aep`            | One ASP.NET Core project. Its folders separate HTTP controllers, models, services, background services, database access, and integrations. |
-| Jira Simulator   | React/TypeScript UI and local Node.js API with SQLite projects, issues and evidence; sends confirmed local execution webhooks.             |
-| Jira MCP server  | Node.js Streamable HTTP MCP adapter for issue reads, evidence updates and In Progress → Done transitions through the simulator API.        |
-| PostgreSQL       | Persistent workflow state, agent runs, approvals, and audit data.                                                                          |
-| Docker workspace | Bounded, temporary working environment for agents and their repository checkout.                                                           |
+| Component        | Responsibility                                                                                                                      |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `Aep`            | One ASP.NET Core project. Its folders separate HTTP controllers, models, services, database access, and integrations.               |
+| Jira Simulator   | React/TypeScript UI and local Node.js API with SQLite projects, issues and evidence; sends confirmed local execution webhooks.      |
+| Jira MCP server  | Node.js Streamable HTTP MCP adapter for issue reads, evidence updates and In Progress → Done transitions through the simulator API. |
+| PostgreSQL       | Persistent workflow queue, planned steps, webhook receipts and audit data.                                                          |
+| Docker workspace | Bounded, temporary working environment for agents and their repository checkout.                                                    |
 
 The folder boundaries are logical, not separate assemblies. Agent execution,
 GitHub integration, and background processing will initially live inside this
@@ -83,24 +83,21 @@ an authentication or authorization boundary.
 
 ### Issue to workflow
 
-1. A user creates an issue in Jira Simulator and confirms **Execute** in its
-   details.
-2. The simulator sends a minimal execution-request webhook. The future AEP API
-   must authenticate and validate it, and record or schedule the workflow.
+1. A user configures the required project repository, creates an issue in Jira
+   Simulator and confirms **Execute** in its details.
+2. The simulator sends a signed minimal execution-request webhook. AEP
+   authenticates it, validates the simulator's project-default or issue-override
+   repository selection and persists seven
+   pending steps. The following steps are future work, not active execution.
 3. The worker loads the workflow and performs policy and risk checks.
 4. The agent pipeline works in an isolated Docker workspace.
 5. The host processes permitted GitHub actions and creates a feature branch and
    draft PR.
 6. A person reviews the PR and decides whether to merge or take further action.
 
-Each explicit confirmation currently sends a new event UUID once, with no
-automatic retries; the simulator does not know whether the issue is already
-running. A separate confirmation can intentionally request another execution.
-The sender's provisional local-only contract is documented in the README.
-Authentication and authorization, deduplication of delivery by event ID, and
-workflow transitions must be implemented before real workflows are enabled.
-Repeated delivery of the same event must not cause uncontrolled duplicate
-workflows.
+Each confirmation sends a new event UUID once, without automatic retries.
+PostgreSQL serializes requests by stable issue identity and prevents duplicate
+active workflows; durable event receipts make redelivery idempotent.
 
 ### Agent pipeline
 
@@ -140,21 +137,30 @@ is not. A workflow must be able to reference at least:
 - agent runs, results, and attempts;
 - risk assessment, policy decisions, and approval status;
 - workspace and GitHub results;
-- audit events and relevant timestamps.
+- event history and relevant timestamps.
 
-This is a conceptual minimum, not a finalized database schema. Transaction
-boundaries, concurrency control, retention, and recovery behavior must be
-designed during implementation. The current EF Core model is versioned through
+This is a conceptual minimum, not a finalized database schema. Intake
+transactions and active-issue concurrency control are implemented; retention
+and worker recovery remain open. The EF Core model is versioned through
 migrations, which the application applies before accepting requests. The AEP
 persists external Jira records as issues; the `RenameIssueSchema` migration
 renames the earlier table and workflow reference without dropping existing
 records.
+The `RenameAuditEventToEventHistory` migration renames the audit-event table,
+indexes and constraints without deleting existing events. Historical migrations
+retain their original names.
+The unused agent execution, approval, policy decision and pull request EF
+models have been retired. Their legacy tables and any existing records remain
+in PostgreSQL but are no longer managed by the current EF model. Before
+introducing replacement models, explicitly reconcile those tables and their
+data in a future migration; do not assume EF will recreate or remove them.
 
 ## Repository layout
 
 - `aep/src/Aep/` is the single .NET web project. Its folders are organized by
-  responsibility: `Controllers/`, `Models/`, `Services/`, `BackgroundServices/`,
-  `Database/`, and `Integrations/`.
+  responsibility: `Controllers/`, `Models/`, `Services/`, `Database/`, and
+  `Integrations/`. The agent runner and its service and integration folders
+  will be introduced when that runtime is implemented.
 - `aep/src/Aep/Aep.sln` is the entry point for building the application and its
   `aep/tests/Aep.Tests/` xUnit project.
 - `aep/dotnet-tools.json` pins the local EF Core command-line tool.
@@ -164,13 +170,13 @@ records.
 - `aep/policies/` contains initial policy configurations; they only take effect
   when enforced by the runtime.
 - `infrastructure/` contains the planned Docker configuration.
-- `aep/tests/Aep.Tests/` contains .NET unit tests; future integration tests remain
-  to be designed.
+- `aep/tests/Aep.Tests/` contains .NET unit tests and opt-in isolated PostgreSQL
+  integration tests.
 
 ## Open decisions
 
-- API contracts.
-- Webhook authentication, deduplication, and retry/dead-letter behavior.
+- Future agent and GitHub API contracts.
+- Webhook retry/dead-letter behavior.
 - Workflow states, recovery strategy, timeouts, and cancellation.
 - Audit retention and backup strategy.
 - Docker network policy, resource limits, and workspace cleanup.

@@ -85,7 +85,9 @@ function App() {
   const [projectDialog, setProjectDialog] = useState<ProjectDialogState>(null);
   const [deleteDialog, setDeleteDialog] = useState<DeleteState>(null);
   const [focusDeleteAction, setFocusDeleteAction] = useState(false);
-  const [projectDeleteDraft, setProjectDeleteDraft] = useState("");
+  const [projectDeleteDraft, setProjectDeleteDraft] = useState<ProjectDraft>({
+    name: "",
+  });
   const [view, setView] = useState<IssueView>("board");
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<IssueStatus | "All">("All");
@@ -365,6 +367,7 @@ function App() {
       const result = await mutate<Snapshot>("projects/update", {
         id: editedProject.id,
         name: draft.name,
+        repository: draft.repository,
       });
       if (!result) return;
       if (previousPrefix !== updatedPrefix) {
@@ -891,6 +894,7 @@ function App() {
                   issue.parentIssueKey === selectedIssue.key,
               )}
               projectName={selectedProject.name}
+              projectRepository={selectedProject.repository}
               focusEditAction={focusEditAction}
               focusSubtaskAction={focusSubtaskAction}
               focusStandaloneAction={focusStandaloneAction}
@@ -1009,11 +1013,11 @@ function App() {
             projects={projects}
             requestError={error}
             focusDeleteAction={focusDeleteAction}
-            initialName={focusDeleteAction ? projectDeleteDraft : undefined}
+            initialDraft={focusDeleteAction ? projectDeleteDraft : undefined}
             onDelete={
               projectDialog.mode === "edit"
-                ? (draftName) => {
-                    setProjectDeleteDraft(draftName);
+                ? (draft) => {
+                    setProjectDeleteDraft(draft);
                     setFocusDeleteAction(false);
                     setDeleteDialog({
                       kind: "project",

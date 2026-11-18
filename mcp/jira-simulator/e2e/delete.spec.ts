@@ -74,7 +74,7 @@ test("deletes a project and switches to the remaining project, then shows the em
   request,
 }) => {
   const created = await request.post("/api/projects/create", {
-    data: { name: "Other Project" },
+    data: { name: "Other Project", repository: "owner/repo" },
   });
   const { project } = await created.json();
   const issue = await request.post("/api/issues/create", {

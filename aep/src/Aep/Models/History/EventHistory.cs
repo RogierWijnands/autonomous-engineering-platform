@@ -1,8 +1,8 @@
-namespace Aep.Workflows.Auditing;
+namespace Aep.Workflows.History;
 
 using Aep.Workflows.Workflows;
 
-public sealed class AuditEvent
+public sealed class EventHistory
 {
     public Guid Id { get; init; } = Guid.NewGuid();
     public Guid WorkflowId { get; init; }

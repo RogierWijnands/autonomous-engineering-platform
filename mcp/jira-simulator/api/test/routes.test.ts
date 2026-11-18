@@ -224,10 +224,20 @@ test("enforces request security, JSON limits and exact routes before dispatch", 
 test("project routes use validated JSON and return the updated state", async () => {
   const api = await setup();
   try {
-    const response = await fetch(`${api.url}/api/projects/create`, {
+    const invalid = await fetch(`${api.url}/api/projects/create`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: "Alpha" }),
+    });
+    assert.equal(invalid.status, 400);
+    assert.match(
+      (await invalid.json()).error,
+      /default GitHub repository is required/i,
+    );
+    const response = await fetch(`${api.url}/api/projects/create`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "Alpha", repository: "owner/repo" }),
     });
     assert.equal(response.status, 200);
     assert.equal(response.headers.get("x-powered-by"), null);

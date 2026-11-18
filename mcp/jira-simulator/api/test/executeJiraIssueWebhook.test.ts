@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { once } from "node:events";
+import { createHmac } from "node:crypto";
 import { createServer } from "node:http";
 import { test } from "node:test";
 import { createApp } from "../app.ts";
@@ -28,23 +29,40 @@ test("execution webhook accepts only a credential-free local HTTP endpoint", () 
   );
 });
 
-test("execution requests send distinct minimal events and report uncertain delivery", async () => {
-  const received: { method?: string; path?: string; body: string }[] = [];
-  let mode: "accept" | "reject" | "redirect" | "disconnect" | "hang" = "accept";
+test("execution requests send signed repository selections and report uncertain delivery", async () => {
+  const secret = "synthetic-webhook-test-secret-123456";
+  const received: {
+    method?: string;
+    path?: string;
+    body: string;
+    signature?: string;
+  }[] = [];
+  let mode:
+    "accept" | "reject" | "conflict" | "redirect" | "disconnect" | "hang" =
+    "accept";
   const receiver = createServer((req, res) => {
     let body = "";
     req.setEncoding("utf8");
     req.on("data", (chunk: string) => (body += chunk));
     req.on("end", () => {
-      received.push({ method: req.method, path: req.url, body });
+      received.push({
+        method: req.method,
+        path: req.url,
+        body,
+        signature: req.headers["x-aep-signature"] as string | undefined,
+      });
       if (mode === "disconnect") return req.socket.destroy();
       if (mode === "hang") return;
       if (mode === "redirect") {
         res.writeHead(307, { Location: "/redirect-target" });
       } else {
-        res.writeHead(mode === "accept" ? 202 : 500);
+        res.writeHead(
+          mode === "accept" ? 202 : mode === "conflict" ? 409 : 500,
+        );
       }
-      res.end();
+      res.end(
+        mode === "accept" ? JSON.stringify({ alreadyQueued: false }) : "",
+      );
     });
   }).listen(0, "127.0.0.1");
   await once(receiver, "listening");
@@ -59,13 +77,19 @@ test("execution requests send distinct minimal events and report uncertain deliv
     probe.close((error) => (error ? reject(error) : resolve())),
   );
   const store = createStore(":memory:");
-  store.resetTestData({ projects: initialProjects, issues: initialIssues });
-  const before = store.snapshot();
+  store.resetTestData({
+    projects: initialProjects.map((project) => ({
+      ...project,
+      repository: "owner/default",
+    })),
+    issues: initialIssues,
+  });
   const server = createServer(
     createApp(
       apiAddress.port,
       store,
       `http://127.0.0.1:${receiverAddress.port}/webhook`,
+      secret,
     ),
   ).listen(apiAddress.port, "127.0.0.1");
   await once(server, "listening");
@@ -91,25 +115,78 @@ test("execution requests send distinct minimal events and report uncertain deliv
     for (let index = 0; index < 2; index++) {
       const response = await post({ key: "DEMO-1001" });
       assert.equal(response.status, 202);
-      assert.deepEqual(await response.json(), { delivered: true });
+      assert.deepEqual(await response.json(), {
+        delivered: true,
+        alreadyQueued: false,
+      });
     }
     assert.equal(received.length, 2);
-    const events = received.map(({ method, path, body }) => {
+    const events = received.map(({ method, path, body, signature }) => {
       assert.equal(method, "POST");
       assert.equal(path, "/webhook");
+      assert.equal(
+        signature,
+        `sha256=${createHmac("sha256", secret).update(body).digest("hex")}`,
+      );
       return JSON.parse(body);
     });
+
     for (const event of events) {
       assert.deepEqual(Object.keys(event).sort(), [
         "event",
         "eventId",
         "issueKey",
+        "repository",
       ]);
       assert.equal(event.event, "issue.execution_requested");
       assert.equal(event.issueKey, "DEMO-1001");
+      assert.equal(event.repository, "owner/default");
       assert.match(event.eventId, /^[0-9a-f-]{36}$/);
     }
     assert.notEqual(events[0].eventId, events[1].eventId);
+    const issue = store.getIssue("DEMO-1001");
+    store.updateIssue(issue.key, { ...issue, repository: "other/override" });
+    assert.equal((await post({ key: issue.key })).status, 202);
+    assert.equal(
+      JSON.parse(received.at(-1)!.body).repository,
+      "other/override",
+    );
+    assert.equal(
+      received.at(-1)!.signature,
+      `sha256=${createHmac("sha256", secret).update(received.at(-1)!.body).digest("hex")}`,
+    );
+    store.updateIssue(issue.key, { ...issue, repository: "" });
+    assert.equal((await post({ key: issue.key })).status, 202);
+    assert.equal(JSON.parse(received.at(-1)!.body).repository, "owner/default");
+    store.resetTestData({
+      projects: initialProjects.map(
+        ({ repository: _repository, ...project }) => project,
+      ),
+      issues: initialIssues,
+    });
+    store.updateIssue(issue.key, {
+      ...store.getIssue(issue.key),
+      repository: "other/override",
+    });
+    const previousCount = received.length;
+    const missingDefault = await post({ key: issue.key });
+    assert.equal(missingDefault.status, 409);
+    assert.match(
+      (await missingDefault.json()).error,
+      /project's default GitHub repository/i,
+    );
+    assert.equal(received.length, previousCount);
+    store.updateProject(
+      initialProjects[0].id,
+      initialProjects[0].name,
+      "owner/default",
+    );
+    const before = store.snapshot();
+
+    mode = "conflict";
+    const conflict = await post({ key: "DEMO-1001" });
+    assert.equal(conflict.status, 409);
+    assert.match((await conflict.json()).error, /repository mapping/i);
 
     for (const failure of [
       "reject",
@@ -141,6 +218,19 @@ test("execution requests send distinct minimal events and report uncertain deliv
     store.close();
     await new Promise<void>((resolve, reject) =>
       receiver.close((error) => (error ? reject(error) : resolve())),
+    );
+  }
+});
+
+test("execution requests fail closed without a sufficiently long secret", async () => {
+  for (const secret of ["", "short"]) {
+    const send = createExecuteJiraIssueWebhook(
+      "http://127.0.0.1:5062/webhook",
+      secret,
+    );
+    await assert.rejects(
+      send("DEMO-1001", "owner/repo"),
+      /authentication is not configured/,
     );
   }
 });
