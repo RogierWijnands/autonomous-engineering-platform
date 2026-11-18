@@ -1,3 +1,4 @@
+using Aep.Constants;
 using Aep.Models.Health;
 using Aep.Services.Health;
 using Microsoft.AspNetCore.Mvc;
@@ -13,7 +14,7 @@ public sealed class HealthController(DatabaseHealthService healthService) : Cont
     {
         var isDatabaseAvailable =
             await healthService.IsDatabaseAvailableAsync(cancellationToken);
-        var response = new HealthResponse(isDatabaseAvailable ? "healthy" : "unhealthy");
+        var response = new HealthResponse(isDatabaseAvailable ? HealthStatuses.Healthy : HealthStatuses.Unhealthy);
 
         return isDatabaseAvailable
             ? Ok(response)

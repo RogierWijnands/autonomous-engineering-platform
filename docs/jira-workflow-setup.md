@@ -8,6 +8,11 @@ its signature and payload, reads the current issue through the local simulator
 API, validates the repository selected by the simulator and commits a workflow, seven pending
 steps, a queue event in the event history and an event receipt in PostgreSQL. Only after the
 transaction commits does AEP respond with `202 Accepted`.
+Reusable identifiers are defined in `aep/src/Aep/Constants/`; the queue event
+keeps the persisted value `workflow.queued` for compatibility with existing history.
+Workflow and step statuses use enums, while planned step names and the Jira
+webhook event use reusable constants. Event actors remain the configured Jira
+application name; Jira issue statuses remain externally supplied data.
 
 The planned order is Analyst, Architect, UI/UX design, Developer, UI/UX
 review, Tester and Reviewer. No worker consumes the queue in this version:

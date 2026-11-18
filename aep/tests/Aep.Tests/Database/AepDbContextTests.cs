@@ -29,6 +29,18 @@ public sealed class AepDbContextTests
                 .TargetEntityType.ClrType);
     }
 
+    [Fact]
+    public void Model_EnforcesOneWorkflowForEachActiveStatus()
+    {
+        using var context = CreateContext();
+        var index = context.Model.FindEntityType(typeof(Workflow))?
+            .GetIndexes().Single(item => item.GetDatabaseName() == "IX_Workflows_ActiveIssue");
+
+        Assert.NotNull(index);
+        Assert.True(index.IsUnique);
+        Assert.Equal("\"Status\" IN ('Received', 'Running', 'Paused')", index.GetFilter());
+    }
+
     [Theory]
     [InlineData(EntityState.Modified)]
     [InlineData(EntityState.Deleted)]

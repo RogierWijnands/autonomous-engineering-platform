@@ -158,7 +158,7 @@ data in a future migration; do not assume EF will recreate or remove them.
 ## Repository layout
 
 - `aep/src/Aep/` is the single .NET web project. Its folders are organized by
-  responsibility: `Controllers/`, `Models/`, `Services/`, `Database/`, and
+  responsibility: `Constants/`, `Controllers/`, `Models/`, `Services/`, `Database/`, and
   `Integrations/`. The agent runner and its service and integration folders
   will be introduced when that runtime is implemented.
 - `aep/src/Aep/Aep.sln` is the entry point for building the application and its

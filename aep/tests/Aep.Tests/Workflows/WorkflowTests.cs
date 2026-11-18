@@ -164,11 +164,29 @@ public sealed class WorkflowTests
         {
             var workflow = await db.Workflows.Include(item => item.Steps).Include(item => item.Issue)
                 .Include(item => item.EventHistory).SingleAsync(item => item.Id == sameEvent[0].WorkflowId);
-            Assert.Equal(7, workflow.Steps.Count);
+            Assert.Equal(
+                ["Analyst", "Architect", "UI/UX design", "Developer", "UI/UX review", "Tester", "Reviewer"],
+                workflow.Steps.OrderBy(step => step.Sequence).Select(step => step.Name));
             Assert.Equal("synthetic-jira", workflow.Issue.Source);
-            Assert.Equal("synthetic-jira", Assert.Single(workflow.EventHistory).Actor);
+            var history = Assert.Single(workflow.EventHistory);
+            Assert.Equal("workflow.queued", history.EventType);
+            Assert.Equal("synthetic-jira", history.Actor);
             Assert.Equal("owner/project", workflow.Repository);
             Assert.All(workflow.Steps, step => Assert.Equal(WorkflowStepStatus.Pending, step.Status));
+        }
+        foreach (var status in new[] { WorkflowStatus.Running, WorkflowStatus.Paused })
+        {
+            await using var db = new AepDbContext(options);
+            var workflow = await db.Workflows.SingleAsync(item => item.Id == sameEvent[0].WorkflowId);
+            workflow.Status = status;
+            await db.SaveChangesAsync();
+            var duplicate = await Accept(Guid.NewGuid());
+            Assert.True(duplicate.AlreadyQueued);
+            Assert.Equal(workflow.Id, duplicate.WorkflowId);
+        }
+        await using (var db = new AepDbContext(options))
+        {
+            var workflow = await db.Workflows.SingleAsync(item => item.Id == sameEvent[0].WorkflowId);
             workflow.Status = WorkflowStatus.Completed;
             await db.SaveChangesAsync();
         }
