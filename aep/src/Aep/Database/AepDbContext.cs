@@ -43,7 +43,7 @@ public sealed class AepDbContext(DbContextOptions<AepDbContext> options) : DbCon
             entity.HasIndex(workflow => workflow.IssueId)
                 .HasDatabaseName("IX_Workflows_ActiveIssue")
                 .IsUnique()
-                .HasFilter("\"Status\" IN ('Received', 'Running', 'Paused')");
+                .HasFilter($"\"Status\" IN ('{nameof(WorkflowStatus.Received)}', '{nameof(WorkflowStatus.Running)}', '{nameof(WorkflowStatus.Paused)}')");
         });
 
         modelBuilder.Entity<WebhookReceipt>(entity =>

@@ -1,3 +1,4 @@
+using Aep.Constants;
 using Aep.Exceptions;
 using Aep.Infrastructure.Database;
 using Aep.Integrations.GitHub;
@@ -16,8 +17,9 @@ public sealed class WorkflowRequestsService(
 {
     private static readonly string[] AgentStages =
     [
-        "Analyst", "Architect", "UI/UX design", "Developer",
-        "UI/UX review", "Tester", "Reviewer"
+        WorkflowStepNames.Analyst, WorkflowStepNames.Architect, WorkflowStepNames.UiUxDesign,
+        WorkflowStepNames.Developer, WorkflowStepNames.UiUxReview,
+        WorkflowStepNames.Tester, WorkflowStepNames.Reviewer
     ];
 
     public async Task<WorkflowAcceptanceResponse> AcceptAsync(
@@ -61,7 +63,7 @@ public sealed class WorkflowRequestsService(
             }).ToList(),
             EventHistory =
             [
-                new EventHistory { EventType = "workflow.queued", Actor = settings.ApplicationName }
+                new EventHistory { EventType = EventTypes.WorkflowQueued, Actor = settings.ApplicationName }
             ]
         };
         if (existing is null)

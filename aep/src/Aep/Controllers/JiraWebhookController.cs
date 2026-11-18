@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Aep.Constants;
 using Aep.Services.Workflows;
 using Aep.Workflows.Workflows;
 using Microsoft.AspNetCore.Mvc;
@@ -49,7 +50,7 @@ public sealed partial class JiraWebhookController(
         {
             return Problem(statusCode: 400, title: "Invalid webhook payload.");
         }
-        if (request is null || request.Event != "issue.execution_requested" ||
+        if (request is null || request.Event != JiraWebhookEvents.ExecutionRequested ||
             request.EventId == Guid.Empty || request.IssueKey is null ||
             !IssueKeyPattern().IsMatch(request.IssueKey))
             return Problem(statusCode: 400, title: "Invalid webhook payload.");
