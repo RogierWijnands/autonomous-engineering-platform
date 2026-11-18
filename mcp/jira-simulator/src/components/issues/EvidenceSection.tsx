@@ -15,6 +15,15 @@ interface EvidenceSectionProps {
   onSave: (evidence: EvidenceDocument) => Promise<boolean>;
 }
 
+function hasEvidenceContent(nodes: EvidenceNode[]): boolean {
+  return nodes.some(
+    (node) =>
+      node.type === "image" ||
+      (node.type === "text" && Boolean(node.text?.trim())) ||
+      (node.content !== undefined && hasEvidenceContent(node.content)),
+  );
+}
+
 function renderNodes(nodes: EvidenceNode[]): ReactNode {
   return nodes.map((node, index) => {
     const children = node.content ? renderNodes(node.content) : null;
@@ -290,6 +299,12 @@ export function EvidenceSection({ evidence, onSave }: EvidenceSectionProps) {
   const [editing, setEditing] = useState(false);
   const editButton = useRef<HTMLButtonElement>(null);
   const restoreFocus = useRef(false);
+  const invalidEvidence =
+    evidence !== undefined && !isEvidenceDocument(evidence);
+  const hasEvidence =
+    !invalidEvidence &&
+    evidence !== undefined &&
+    hasEvidenceContent(evidence.content);
 
   useEffect(() => {
     if (!editing && restoreFocus.current) {
@@ -306,7 +321,7 @@ export function EvidenceSection({ evidence, onSave }: EvidenceSectionProps) {
   return (
     <section className="detail-section" aria-labelledby="evidence-heading">
       <h3 id="evidence-heading">Evidence</h3>
-      {evidence !== undefined && !isEvidenceDocument(evidence) ? (
+      {invalidEvidence ? (
         <p className="form-error" role="alert">
           Evidence could not be displayed because it contains unsupported or
           unsafe content. Refresh and check the simulator data.
@@ -319,7 +334,7 @@ export function EvidenceSection({ evidence, onSave }: EvidenceSectionProps) {
         />
       ) : (
         <>
-          {evidence ? (
+          {hasEvidence && evidence ? (
             <div className="evidence-content">
               {renderNodes(evidence.content)}
             </div>
@@ -332,7 +347,7 @@ export function EvidenceSection({ evidence, onSave }: EvidenceSectionProps) {
             className="secondary-button"
             onClick={() => setEditing(true)}
           >
-            {evidence ? "Edit evidence" : "Add evidence"}
+            {hasEvidence ? "Edit evidence" : "Add evidence"}
           </button>
         </>
       )}

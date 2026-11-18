@@ -14,6 +14,10 @@ import {
   isRecord,
 } from "../../src/utils/issueValidation.ts";
 import { projectIssuePrefix } from "../../src/utils/projectIssuePrefix.ts";
+import {
+  isGitHubRepository,
+  isOptionalGitHubRepository,
+} from "../../src/utils/githubRepository.ts";
 
 type IssueFields = IssueDraft & { status: IssueStatus };
 type Snapshot = { projects: Project[]; issues: Issue[] };
@@ -84,9 +88,13 @@ export function createStore(path: string) {
       last_number INTEGER NOT NULL
     );
   `);
+  const projectColumns = db.prepare("PRAGMA table_info(projects)").all();
+  if (!projectColumns.some((column) => column.name === "repository")) {
+    db.exec("ALTER TABLE projects ADD COLUMN repository TEXT");
+  }
 
   const insertProject = db.prepare(
-    "INSERT INTO projects (id, name) VALUES (?, ?)",
+    "INSERT INTO projects (id, name, repository) VALUES (?, ?, ?)",
   );
   const insertIssue = db.prepare(
     "INSERT INTO issues (key, project_id, data) VALUES (?, ?, ?)",
@@ -96,14 +104,23 @@ export function createStore(path: string) {
   // The UI consumes projects in creation order and issues newest first.
   const snapshot = (): Snapshot => ({
     projects: db
-      .prepare("SELECT id, name FROM projects ORDER BY rowid")
+      .prepare("SELECT id, name, repository FROM projects ORDER BY rowid")
       .all()
       .map((row) => {
-        if (typeof row.id !== "string" || typeof row.name !== "string") {
+        if (
+          typeof row.id !== "string" ||
+          typeof row.name !== "string" ||
+          (row.repository !== null &&
+            !isOptionalGitHubRepository(row.repository))
+        ) {
           throw new Error("Invalid project data in database.");
         }
 
-        return { id: row.id, name: row.name };
+        return {
+          id: row.id,
+          name: row.name,
+          ...(row.repository ? { repository: row.repository } : {}),
+        };
       }),
     issues: db
       .prepare("SELECT data FROM issues ORDER BY rowid DESC")
@@ -134,18 +151,27 @@ export function createStore(path: string) {
     }
 
     const project = db
-      .prepare("SELECT id, name FROM projects WHERE id = ?")
+      .prepare("SELECT id, name, repository FROM projects WHERE id = ?")
       .get(id);
 
     if (!project) {
       throw new InputError("Project not found.", 404);
     }
 
-    if (typeof project.id !== "string" || typeof project.name !== "string") {
+    if (
+      typeof project.id !== "string" ||
+      typeof project.name !== "string" ||
+      (project.repository !== null &&
+        !isOptionalGitHubRepository(project.repository))
+    ) {
       throw new Error("Invalid project data in database.");
     }
 
-    return { id: project.id, name: project.name };
+    return {
+      id: project.id,
+      name: project.name,
+      ...(project.repository ? { repository: project.repository } : {}),
+    };
   };
 
   const getIssue = (key: unknown): Issue => {
@@ -238,6 +264,7 @@ export function createStore(path: string) {
   return {
     snapshot,
     getIssue,
+    getProject,
     close: () => db.close(),
     // Replace fixtures atomically; the HTTP route also requires test mode.
     resetTestData(data: unknown) {
@@ -261,12 +288,17 @@ export function createStore(path: string) {
           if (
             !isRecord(project) ||
             typeof project.id !== "string" ||
-            typeof project.name !== "string"
+            typeof project.name !== "string" ||
+            !isOptionalGitHubRepository(project.repository)
           ) {
             throw new InputError("Invalid test data.");
           }
 
-          insertProject.run(project.id, project.name);
+          insertProject.run(
+            project.id,
+            project.name,
+            project.repository || null,
+          );
         }
 
         for (const issue of [...issues].reverse()) {
@@ -281,33 +313,46 @@ export function createStore(path: string) {
       });
     },
 
-    createProject(name: unknown) {
+    createProject(name: unknown, repository?: unknown) {
       return transaction(() => {
         validateProject(name);
+        if (!isGitHubRepository(repository))
+          throw new InputError(
+            "A valid default GitHub repository is required. Use owner/repository.",
+          );
 
-        const project = { id: randomUUID(), name };
+        const project: Project = {
+          id: randomUUID(),
+          name,
+          repository,
+        };
 
-        insertProject.run(project.id, project.name);
+        insertProject.run(project.id, project.name, project.repository ?? null);
 
         return { ...snapshot(), project };
       });
     },
 
     // A changed project prefix also changes issue keys and parent references.
-    updateProject(id: unknown, name: unknown) {
+    updateProject(id: unknown, name: unknown, repository?: unknown) {
       return transaction(() => {
         const project = getProject(id);
 
         validateProject(name, id);
+        const effectiveRepository =
+          repository === undefined ? project.repository : repository;
+        if (!isGitHubRepository(effectiveRepository))
+          throw new InputError(
+            "A valid default GitHub repository is required. Use owner/repository.",
+          );
 
         const oldPrefix = projectIssuePrefix(project.name);
         const newPrefix = projectIssuePrefix(name);
         const issues = projectIssues(project.id);
 
-        db.prepare("UPDATE projects SET name = ? WHERE id = ?").run(
-          name,
-          project.id,
-        );
+        db.prepare(
+          "UPDATE projects SET name = ?, repository = ? WHERE id = ?",
+        ).run(name, effectiveRepository, project.id);
 
         if (oldPrefix !== newPrefix) {
           db.prepare("DELETE FROM issues WHERE project_id = ?").run(project.id);
@@ -407,6 +452,7 @@ export function createStore(path: string) {
           status: issue.status,
           labels: issue.labels,
           acceptanceCriteria: issue.acceptanceCriteria,
+          ...(issue.repository ? { repository: issue.repository } : {}),
           ...(parentKey ? { parentIssueKey: parentKey } : {}),
         };
 
@@ -443,6 +489,10 @@ export function createStore(path: string) {
           status: data.status,
           labels: data.labels,
           acceptanceCriteria: data.acceptanceCriteria,
+          repository:
+            data.repository === undefined
+              ? current.repository
+              : data.repository || undefined,
         };
 
         saveIssue(updated);

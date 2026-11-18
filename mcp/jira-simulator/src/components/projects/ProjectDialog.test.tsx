@@ -27,7 +27,10 @@ describe("ProjectDialog", () => {
     await user.clear(name);
     await user.type(name, "Unsaved name");
     await user.click(screen.getByRole("button", { name: "Delete project" }));
-    expect(onDelete).toHaveBeenCalledWith("Unsaved name");
+    expect(onDelete).toHaveBeenCalledWith({
+      name: "Unsaved name",
+      repository: "",
+    });
     expect(onSave).not.toHaveBeenCalled();
   });
 
@@ -47,11 +50,53 @@ describe("ProjectDialog", () => {
       within(dialog).getByRole("textbox", { name: /Project name/ }),
       "  Alpha Project  ",
     );
+    await user.type(
+      within(dialog).getByRole("textbox", {
+        name: "Default GitHub repository",
+      }),
+      "owner/repo",
+    );
     await user.click(
       within(dialog).getByRole("button", { name: "Create project" }),
     );
 
-    expect(onSave).toHaveBeenCalledWith({ name: "Alpha Project" });
+    expect(onSave).toHaveBeenCalledWith({
+      name: "Alpha Project",
+      repository: "owner/repo",
+    });
+  });
+
+  it("requires and validates the default repository", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    render(
+      <ProjectDialog
+        project={existingProject}
+        projects={[existingProject]}
+        onSave={onSave}
+        onClose={vi.fn()}
+      />,
+    );
+    const repository = screen.getByRole("textbox", {
+      name: "Default GitHub repository",
+    });
+    expect(repository).toBeRequired();
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+    expect(repository).toHaveFocus();
+    expect(repository).toHaveAttribute("aria-invalid", "true");
+    expect(onSave).not.toHaveBeenCalled();
+    await user.type(repository, "https://example.com/repo");
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+    expect(repository).toHaveFocus();
+    expect(repository).toHaveAttribute("aria-invalid", "true");
+    expect(onSave).not.toHaveBeenCalled();
+    await user.clear(repository);
+    await user.type(repository, " owner/project ");
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+    expect(onSave).toHaveBeenCalledWith({
+      name: "Demo Project",
+      repository: "owner/project",
+    });
   });
 
   it("rejects names whose derived issue-ID prefix is already in use", async () => {

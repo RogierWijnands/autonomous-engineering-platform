@@ -1,16 +1,27 @@
 import type { Issue, Project } from "../types";
 import { isIssueFields, isRecord } from "./issueValidation";
+import { isOptionalGitHubRepository } from "./githubRepository";
 
 export interface Snapshot {
   projects: Project[];
   issues: Issue[];
 }
 
+export class ApiRequestError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+  ) {
+    super(message);
+  }
+}
+
 function isProject(value: unknown): boolean {
   return (
     isRecord(value) &&
     typeof value.id === "string" &&
-    typeof value.name === "string"
+    typeof value.name === "string" &&
+    isOptionalGitHubRepository(value.repository)
   );
 }
 
@@ -85,7 +96,10 @@ export async function request<T>(
           "API endpoint not found. Check that the simulator API is current and restart it if necessary.",
         );
       }
-      throw new Error(body.error || `Request failed (${response.status}).`);
+      throw new ApiRequestError(
+        body.error || `Request failed (${response.status}).`,
+        response.status,
+      );
     }
 
     throw new Error(`Request failed (${response.status}).`);

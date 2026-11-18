@@ -2,10 +2,13 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useRef, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { request } from "../../utils/api";
+import { ApiRequestError, request } from "../../utils/api";
 import { ExecuteIssueDialog } from "./ExecuteIssueDialog";
 
-vi.mock("../../utils/api", () => ({ request: vi.fn() }));
+vi.mock("../../utils/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../utils/api")>()),
+  request: vi.fn(),
+}));
 
 function Harness() {
   const [open, setOpen] = useState(false);
@@ -31,13 +34,15 @@ beforeEach(() => {
 });
 
 describe("ExecuteIssueDialog", () => {
-  it("warns about duplicate execution and cancels without sending", async () => {
+  it("explains deduplication and cancels without sending", async () => {
     const user = userEvent.setup();
     render(<Harness />);
     const trigger = screen.getByRole("button", { name: "Execute" });
     await user.click(trigger);
     const dialog = screen.getByRole("dialog", { name: "Execute issue?" });
-    expect(dialog).toHaveAccessibleDescription(/DEMO-1001.*duplicate work/s);
+    expect(dialog).toHaveAccessibleDescription(
+      /DEMO-1001.*at most one queued or active/s,
+    );
     expect(screen.getByRole("dialog", { name: "Issue details" }).inert).toBe(
       true,
     );
@@ -52,7 +57,10 @@ describe("ExecuteIssueDialog", () => {
 
   it("sends once while pending, then reports acceptance without claiming execution started", async () => {
     const user = userEvent.setup();
-    let resolveRequest: (value: { delivered: true }) => void = () => {
+    let resolveRequest: (value: {
+      delivered: true;
+      alreadyQueued: false;
+    }) => void = () => {
       throw new Error("Request was not created.");
     };
     vi.mocked(request).mockImplementation(
@@ -79,7 +87,9 @@ describe("ExecuteIssueDialog", () => {
       expect.stringMatching(/may have started/i),
     );
 
-    await act(async () => resolveRequest({ delivered: true }));
+    await act(async () =>
+      resolveRequest({ delivered: true, alreadyQueued: false }),
+    );
     expect(screen.getByRole("status")).toHaveTextContent(
       "does not confirm that execution has started",
     );
@@ -87,6 +97,20 @@ describe("ExecuteIssueDialog", () => {
     expect(screen.queryByRole("button", { name: "Execute issue" })).toBeNull();
     await user.click(screen.getByRole("button", { name: "Done" }));
     expect(screen.getByRole("button", { name: "Execute" })).toHaveFocus();
+  });
+
+  it("reports when an execution is already queued", async () => {
+    const user = userEvent.setup();
+    vi.mocked(request).mockResolvedValue({
+      delivered: true,
+      alreadyQueued: true,
+    });
+    render(<Harness />);
+    await user.click(screen.getByRole("button", { name: "Execute" }));
+    await user.click(screen.getByRole("button", { name: "Execute issue" }));
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "No duplicate execution was created",
+    );
   });
 
   it("announces delivery errors and keeps the confirmation open", async () => {
@@ -102,6 +126,22 @@ describe("ExecuteIssueDialog", () => {
     expect(alert).toHaveFocus();
     expect(screen.getByRole("button", { name: "Execute issue" })).toBeEnabled();
     expect(request).toHaveBeenCalledOnce();
+  });
+
+  it("reports a rejected request without suggesting it may have started", async () => {
+    const user = userEvent.setup();
+    vi.mocked(request).mockRejectedValue(
+      new ApiRequestError("Set the project's default GitHub repository.", 409),
+    );
+    render(<Harness />);
+    await user.click(screen.getByRole("button", { name: "Execute" }));
+    await user.click(screen.getByRole("button", { name: "Execute issue" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(
+      "Set the project's default GitHub repository.",
+    );
+    expect(alert).not.toHaveTextContent("Execution may have started");
+    expect(alert).toHaveFocus();
   });
 
   it("does not claim delivery for an unexpected API response", async () => {

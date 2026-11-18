@@ -15,6 +15,9 @@ test("validates project prefixes and keeps issues in their own project", async (
   await expect(projectDialog.getByRole("alert")).toContainText("prefix DEMO");
 
   await name.fill("Alpha Project");
+  await projectDialog
+    .getByLabel("Default GitHub repository")
+    .fill("owner/repo");
   await projectDialog.getByRole("button", { name: "Create project" }).click();
 
   await expect(

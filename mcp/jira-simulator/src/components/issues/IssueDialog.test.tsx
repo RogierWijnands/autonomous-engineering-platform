@@ -76,6 +76,7 @@ describe("IssueDialog", () => {
         "Valid values are accepted",
         "Invalid values are rejected",
       ],
+      repository: "",
     });
   });
 
@@ -115,6 +116,7 @@ describe("IssueDialog", () => {
       priority: "Medium",
       labels: [],
       acceptanceCriteria: [],
+      repository: "",
     });
   });
 
@@ -174,7 +176,36 @@ describe("IssueDialog", () => {
       priority: "High",
       labels: ["backend", "demo"],
       acceptanceCriteria: ["First", "Second"],
+      repository: "",
     });
+  });
+
+  it("validates an issue override and allows it to be cleared", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    render(
+      <IssueDialog
+        project={project}
+        issue={{ ...parentStory, repository: "owner/override" }}
+        onSave={onSave}
+        onClose={vi.fn()}
+      />,
+    );
+    const repository = screen.getByRole("textbox", {
+      name: "GitHub repository override",
+    });
+    expect(repository).toHaveValue("owner/override");
+    await user.clear(repository);
+    await user.type(repository, "../unsafe");
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+    expect(repository).toHaveFocus();
+    expect(repository).toHaveAttribute("aria-invalid", "true");
+    expect(onSave).not.toHaveBeenCalled();
+    await user.clear(repository);
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ repository: "" }),
+    );
   });
 
   it("keeps an existing subtask's type locked when edited", async () => {

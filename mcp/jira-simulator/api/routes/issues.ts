@@ -25,7 +25,10 @@ function sendUpdate(
 
 export function issueRoutes(
   store: Store,
-  sendJiraIssueExecutionWebhook: (issueKey: string) => Promise<void>,
+  sendJiraIssueExecutionWebhook: (
+    issueKey: string,
+    repository: string,
+  ) => Promise<{ alreadyQueued: boolean }>,
 ) {
   const router = Router({ caseSensitive: true, strict: true });
 
@@ -102,8 +105,17 @@ export function issueRoutes(
   router.post("/issues/execute", async (req, res) => {
     const payload: Record<string, unknown> = req.body;
     const issue = store.getIssue(payload.key);
-    await sendJiraIssueExecutionWebhook(issue.key);
-    res.status(202).json({ delivered: true });
+    const project = store.getProject(issue.projectId);
+    if (!project.repository)
+      throw new InputError(
+        "Set the project's default GitHub repository before executing this issue.",
+        409,
+      );
+    const result = await sendJiraIssueExecutionWebhook(
+      issue.key,
+      issue.repository || project.repository,
+    );
+    res.status(202).json({ delivered: true, ...result });
   });
 
   // Deletion and relationship changes are validated atomically by the store.

@@ -132,11 +132,11 @@ test(
     const current = join(fixture, "api", "database", "jira.sqlite");
     const custom = join(fixture, "custom.sqlite");
     const defaultStore = createStore(current);
-    defaultStore.createProject("Default Project");
+    defaultStore.createProject("Default Project", "owner/repo");
     const defaultSnapshot = defaultStore.snapshot();
     defaultStore.close();
     const customStore = createStore(custom);
-    customStore.createProject("Custom Project");
+    customStore.createProject("Custom Project", "owner/repo");
     const customSnapshot = customStore.snapshot();
     customStore.close();
 

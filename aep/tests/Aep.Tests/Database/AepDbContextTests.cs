@@ -1,5 +1,5 @@
 using Aep.Infrastructure.Database;
-using Aep.Workflows.Auditing;
+using Aep.Workflows.History;
 using Aep.Workflows.Issues;
 using Aep.Workflows.Workflows;
 using Microsoft.EntityFrameworkCore;
@@ -32,11 +32,11 @@ public sealed class AepDbContextTests
     [Theory]
     [InlineData(EntityState.Modified)]
     [InlineData(EntityState.Deleted)]
-    public void SaveChanges_RejectsChangesToAuditEvents(EntityState state)
+    public void SaveChanges_RejectsChangesToEventHistory(EntityState state)
     {
         using var context = CreateContext();
-        context.Attach(new AuditEvent());
-        context.Entry(context.AuditEvents.Local.Single()).State = state;
+        context.Attach(new EventHistory());
+        context.Entry(context.EventHistory.Local.Single()).State = state;
 
         var exception = Assert.Throws<InvalidOperationException>(
             () => context.SaveChanges());
@@ -47,11 +47,11 @@ public sealed class AepDbContextTests
     [Theory]
     [InlineData(EntityState.Modified)]
     [InlineData(EntityState.Deleted)]
-    public async Task SaveChangesAsync_RejectsChangesToAuditEvents(EntityState state)
+    public async Task SaveChangesAsync_RejectsChangesToEventHistory(EntityState state)
     {
         await using var context = CreateContext();
-        context.Attach(new AuditEvent());
-        context.Entry(context.AuditEvents.Local.Single()).State = state;
+        context.Attach(new EventHistory());
+        context.Entry(context.EventHistory.Local.Single()).State = state;
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(
             () => context.SaveChangesAsync());

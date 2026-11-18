@@ -22,111 +22,7 @@ namespace Aep.Infrastructure.Database.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("Aep.Workflows.Agents.AgentExecution", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("AgentName")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
-
-                    b.Property<int>("Attempt")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTimeOffset?>("CompletedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("ErrorCode")
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
-
-                    b.Property<string>("InputHash")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<string>("OutputArtifactUri")
-                        .HasMaxLength(2048)
-                        .HasColumnType("character varying(2048)");
-
-                    b.Property<string>("OutputHash")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<DateTimeOffset>("StartedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
-
-                    b.Property<string>("ToolResultsArtifactUri")
-                        .HasMaxLength(2048)
-                        .HasColumnType("character varying(2048)");
-
-                    b.Property<Guid>("WorkflowStepId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("WorkflowStepId", "Attempt")
-                        .IsUnique();
-
-                    b.ToTable("AgentExecutions");
-                });
-
-            modelBuilder.Entity("Aep.Workflows.Approvals.Approval", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Action")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
-
-                    b.Property<DateTimeOffset?>("DecidedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("DecidedBy")
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
-
-                    b.Property<string>("DecisionArtifactUri")
-                        .HasMaxLength(2048)
-                        .HasColumnType("character varying(2048)");
-
-                    b.Property<DateTimeOffset>("RequestedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("RequestedBy")
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
-
-                    b.Property<string>("ScopeHash")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
-
-                    b.Property<Guid>("WorkflowId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("WorkflowId", "Status");
-
-                    b.ToTable("Approvals");
-                });
-
-            modelBuilder.Entity("Aep.Workflows.Auditing.AuditEvent", b =>
+            modelBuilder.Entity("Aep.Workflows.History.EventHistory", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -160,7 +56,7 @@ namespace Aep.Infrastructure.Database.Migrations
 
                     b.HasIndex("WorkflowId", "OccurredAt");
 
-                    b.ToTable("AuditEvents");
+                    b.ToTable("EventHistory");
                 });
 
             modelBuilder.Entity("Aep.Workflows.Issues.Issue", b =>
@@ -170,6 +66,11 @@ namespace Aep.Infrastructure.Database.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<string>("ExternalId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("ExternalKey")
                         .IsRequired()
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");
@@ -209,105 +110,25 @@ namespace Aep.Infrastructure.Database.Migrations
                     b.ToTable("Issues");
                 });
 
-            modelBuilder.Entity("Aep.Workflows.Policies.PolicyDecision", b =>
+            modelBuilder.Entity("Aep.Workflows.Workflows.WebhookReceipt", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<Guid>("EventId")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<string>("DetailsArtifactUri")
-                        .HasMaxLength(2048)
-                        .HasColumnType("character varying(2048)");
-
-                    b.Property<DateTimeOffset>("EvaluatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("InputHash")
+                    b.Property<string>("PayloadHash")
                         .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
-
-                    b.Property<string>("Outcome")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
-
-                    b.Property<string>("PolicyName")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
-
-                    b.Property<string>("PolicyVersion")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<string>("ReasonCode")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
 
                     b.Property<Guid>("WorkflowId")
                         .HasColumnType("uuid");
 
-                    b.HasKey("Id");
-
-                    b.HasIndex("WorkflowId", "EvaluatedAt");
-
-                    b.ToTable("PolicyDecisions");
-                });
-
-            modelBuilder.Entity("Aep.Workflows.PullRequests.PullRequest", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Branch")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("Number")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Provider")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<string>("Repository")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Url")
-                        .IsRequired()
-                        .HasMaxLength(2048)
-                        .HasColumnType("character varying(2048)");
-
-                    b.Property<Guid>("WorkflowId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
+                    b.HasKey("EventId");
 
                     b.HasIndex("WorkflowId");
 
-                    b.HasIndex("Provider", "Repository", "Number")
-                        .IsUnique();
-
-                    b.ToTable("PullRequests");
+                    b.ToTable("WebhookReceipts");
                 });
 
             modelBuilder.Entity("Aep.Workflows.Workflows.Workflow", b =>
@@ -325,6 +146,11 @@ namespace Aep.Infrastructure.Database.Migrations
                     b.Property<Guid>("IssueId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Repository")
+                        .IsRequired()
+                        .HasMaxLength(201)
+                        .HasColumnType("character varying(201)");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -337,7 +163,10 @@ namespace Aep.Infrastructure.Database.Migrations
 
                     b.HasIndex("CreatedAt");
 
-                    b.HasIndex("IssueId");
+                    b.HasIndex("IssueId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Workflows_ActiveIssue")
+                        .HasFilter("\"Status\" IN ('Received', 'Running', 'Paused')");
 
                     b.HasIndex("Status");
 
@@ -396,32 +225,10 @@ namespace Aep.Infrastructure.Database.Migrations
                     b.ToTable("WorkflowSteps");
                 });
 
-            modelBuilder.Entity("Aep.Workflows.Agents.AgentExecution", b =>
-                {
-                    b.HasOne("Aep.Workflows.Workflows.WorkflowStep", "WorkflowStep")
-                        .WithMany("AgentExecutions")
-                        .HasForeignKey("WorkflowStepId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("WorkflowStep");
-                });
-
-            modelBuilder.Entity("Aep.Workflows.Approvals.Approval", b =>
+            modelBuilder.Entity("Aep.Workflows.History.EventHistory", b =>
                 {
                     b.HasOne("Aep.Workflows.Workflows.Workflow", "Workflow")
-                        .WithMany("Approvals")
-                        .HasForeignKey("WorkflowId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Workflow");
-                });
-
-            modelBuilder.Entity("Aep.Workflows.Auditing.AuditEvent", b =>
-                {
-                    b.HasOne("Aep.Workflows.Workflows.Workflow", "Workflow")
-                        .WithMany("AuditEvents")
+                        .WithMany("EventHistory")
                         .HasForeignKey("WorkflowId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
@@ -429,23 +236,12 @@ namespace Aep.Infrastructure.Database.Migrations
                     b.Navigation("Workflow");
                 });
 
-            modelBuilder.Entity("Aep.Workflows.Policies.PolicyDecision", b =>
+            modelBuilder.Entity("Aep.Workflows.Workflows.WebhookReceipt", b =>
                 {
                     b.HasOne("Aep.Workflows.Workflows.Workflow", "Workflow")
-                        .WithMany("PolicyDecisions")
+                        .WithMany()
                         .HasForeignKey("WorkflowId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Workflow");
-                });
-
-            modelBuilder.Entity("Aep.Workflows.PullRequests.PullRequest", b =>
-                {
-                    b.HasOne("Aep.Workflows.Workflows.Workflow", "Workflow")
-                        .WithMany("PullRequests")
-                        .HasForeignKey("WorkflowId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Workflow");
@@ -480,20 +276,9 @@ namespace Aep.Infrastructure.Database.Migrations
 
             modelBuilder.Entity("Aep.Workflows.Workflows.Workflow", b =>
                 {
-                    b.Navigation("Approvals");
-
-                    b.Navigation("AuditEvents");
-
-                    b.Navigation("PolicyDecisions");
-
-                    b.Navigation("PullRequests");
+                    b.Navigation("EventHistory");
 
                     b.Navigation("Steps");
-                });
-
-            modelBuilder.Entity("Aep.Workflows.Workflows.WorkflowStep", b =>
-                {
-                    b.Navigation("AgentExecutions");
                 });
 #pragma warning restore 612, 618
         }

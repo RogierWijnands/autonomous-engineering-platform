@@ -9,6 +9,7 @@ import type {
   IssueStatus,
 } from "../../types";
 import { useDialogFocus } from "../common/useDialogFocus";
+import { isOptionalGitHubRepository } from "../../utils/githubRepository";
 
 const issueTypes: IssueType[] = ["Story", "Task", "Bug"];
 const priorities: Priority[] = ["Highest", "High", "Medium", "Low"];
@@ -43,6 +44,7 @@ export function IssueDialog({
     issue?.issueType ?? "Story",
   );
   const [summaryError, setSummaryError] = useState(false);
+  const [repositoryError, setRepositoryError] = useState(false);
   const isSubtask = Boolean(parentIssue || issue?.parentIssueKey);
   const title = issue
     ? "Edit issue"
@@ -61,6 +63,14 @@ export function IssueDialog({
         ?.focus();
       return;
     }
+    const repository = formValue(formData, "repository").trim();
+    if (!isOptionalGitHubRepository(repository)) {
+      setRepositoryError(true);
+      event.currentTarget
+        .querySelector<HTMLInputElement>('[name="repository"]')
+        ?.focus();
+      return;
+    }
     onSave({
       summary,
       description: formValue(formData, "description").trim(),
@@ -74,6 +84,7 @@ export function IssueDialog({
         .split("\n")
         .map((criterion) => criterion.trim())
         .filter(Boolean),
+      repository,
     });
   }
 
@@ -150,6 +161,29 @@ export function IssueDialog({
             maxLength={1000}
             defaultValue={issue?.description}
           />
+        </label>
+        <label className="form-field">
+          <span id="issue-repository-label">GitHub repository override</span>
+          <input
+            name="repository"
+            maxLength={140}
+            placeholder="owner/repository"
+            defaultValue={issue?.repository}
+            aria-labelledby="issue-repository-label"
+            aria-invalid={repositoryError || undefined}
+            aria-describedby="issue-repository-hint"
+            onChange={() => setRepositoryError(false)}
+          />
+          <small id="issue-repository-hint">
+            {repositoryError
+              ? "Enter a valid owner/repository, without a URL or .git suffix."
+              : "Optional. Leave empty to use the project's default repository."}
+          </small>
+          {repositoryError && (
+            <span className="form-error" role="alert">
+              Invalid GitHub repository.
+            </span>
+          )}
         </label>
         <div className="form-row">
           {isSubtask ? (

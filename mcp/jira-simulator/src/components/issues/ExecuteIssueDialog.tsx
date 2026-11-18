@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { useDialogFocus } from "../common/useDialogFocus";
-import { request } from "../../utils/api";
+import { ApiRequestError, request } from "../../utils/api";
 
 interface ExecuteIssueDialogProps {
   issueKey: string;
@@ -20,6 +20,7 @@ export function ExecuteIssueDialog({
 }: ExecuteIssueDialogProps) {
   const [sending, setSending] = useState(false);
   const [delivered, setDelivered] = useState(false);
+  const [alreadyQueued, setAlreadyQueued] = useState(false);
   const [error, setError] = useState("");
   const pending = useRef(false);
   const statusRef = useRef<HTMLParagraphElement>(null);
@@ -54,13 +55,17 @@ export function ExecuteIssueDialog({
     setSending(true);
     setError("");
     try {
-      const result = await request<{ delivered?: unknown }>(
-        "issues/execute",
-        { key: issueKey },
-        uncertainDelivery,
-      );
-      if (!result || result.delivered !== true)
+      const result = await request<{
+        delivered?: unknown;
+        alreadyQueued?: unknown;
+      }>("issues/execute", { key: issueKey }, uncertainDelivery);
+      if (
+        !result ||
+        result.delivered !== true ||
+        typeof result.alreadyQueued !== "boolean"
+      )
         throw new Error(uncertainDelivery);
+      setAlreadyQueued(result.alreadyQueued);
       setDelivered(true);
     } catch (cause) {
       const message =
@@ -68,7 +73,8 @@ export function ExecuteIssueDialog({
           ? cause.message
           : uncertainDelivery;
       setError(
-        message.includes("Execution may have started")
+        (cause instanceof ApiRequestError && cause.status === 409) ||
+          message.includes("Execution may have started")
           ? message
           : `${message} ${uncertainDelivery}`,
       );
@@ -112,9 +118,8 @@ export function ExecuteIssueDialog({
             workflow.
           </p>
           <p>
-            Jira Simulator cannot check whether AEP is already executing this
-            issue. If it is, confirming sends a new request and can execute the
-            issue again, resulting in duplicate work.
+            AEP will keep at most one queued or active execution for this issue.
+            After an execution completes or fails, a new request can start one.
           </p>
         </div>
         {error && (
@@ -129,8 +134,9 @@ export function ExecuteIssueDialog({
         )}
         {delivered && (
           <p role="status">
-            The webhook endpoint accepted the request. This does not confirm
-            that execution has started.
+            {alreadyQueued
+              ? "This issue is already queued or active in AEP. No duplicate execution was created."
+              : "The webhook endpoint accepted the request. This does not confirm that execution has started."}
           </p>
         )}
         <div className="modal-footer">

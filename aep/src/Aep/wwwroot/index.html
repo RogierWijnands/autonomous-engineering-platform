@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AEP workflow dashboard</title>
+    <link rel="stylesheet" href="/dashboard.css" />
+    <script src="/dashboard.js" defer></script>
+  </head>
+  <body>
+    <main>
+      <h1>AEP workflow dashboard</h1>
+      <p>
+        Execution requests are recorded here. Agents are not started in this
+        version.
+      </p>
+      <form id="login" method="post" action="/">
+        <label for="token">Dashboard token</label>
+        <p>Enter the local AEP_DASHBOARD_TOKEN. It is kept in memory only.</p>
+        <input id="token" type="password" autocomplete="off" required />
+        <button type="submit">Connect</button>
+      </form>
+      <p id="connection" role="status" aria-live="polite">Not connected.</p>
+      <section id="dashboard" hidden aria-label="Workflows">
+        <button id="disconnect" type="button">Disconnect</button>
+        <p>
+          The latest 100 workflows are shown. Updates are checked every three
+          seconds.
+        </p>
+        <section aria-labelledby="queued-heading">
+          <h2 id="queued-heading">Queued</h2>
+          <div id="queued"></div>
+        </section>
+        <section aria-labelledby="active-heading">
+          <h2 id="active-heading">Active</h2>
+          <div id="active"></div>
+        </section>
+        <section aria-labelledby="finished-heading">
+          <h2 id="finished-heading">Finished</h2>
+          <div id="finished"></div>
+        </section>
+      </section>
+    </main>
+  </body>
+</html>

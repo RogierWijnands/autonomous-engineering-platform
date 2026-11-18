@@ -11,7 +11,7 @@
     "dev": "nodemon --exitcrash --signal SIGTERM --watch aep/src/Aep --ext cs,csproj,json --ignore \"aep/src/Aep/bin/**\" --ignore \"aep/src/Aep/obj/**\" --exec \"dotenv -e .env -- dotnet run --project aep/src/Aep/Aep.csproj\"",
     "test:dev": "node --test aep/tests/*.test.mjs",
     "db:migrate": "npm run db:up && cd aep && dotenv -e ../.env -- dotnet ef database update --project src/Aep/Aep.csproj --startup-project src/Aep/Aep.csproj",
-    "start": "npm run db:up && concurrently --kill-others --names \"AEP,Jira Simulator,Jira MCP\" \"npm run dev\" \"npm run start --prefix mcp/jira-simulator\" \"npm run dev --prefix mcp/jira-simulator-mcp-server\"",
+    "start": "npm run db:up && dotenv -e .env -- concurrently --kill-others --names \"AEP,Jira Simulator,Jira MCP\" \"npm run dev\" \"npm run start --prefix mcp/jira-simulator\" \"npm run dev --prefix mcp/jira-simulator-mcp-server\"",
     "prepare": "husky"
   },
   "devDependencies": {

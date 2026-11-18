@@ -1,4 +1,5 @@
 import type { IssueDraft, IssueStatus } from "../types.ts";
+import { isOptionalGitHubRepository } from "./githubRepository.ts";
 
 type IssueFields = IssueDraft & { status: IssueStatus };
 
@@ -25,6 +26,7 @@ export function isIssueFields(
       value.priority === "Medium" ||
       value.priority === "Low") &&
     isIssueStatus(value.status) &&
+    isOptionalGitHubRepository(value.repository) &&
     Array.isArray(value.labels) &&
     Array.isArray(value.acceptanceCriteria) &&
     [...value.labels, ...value.acceptanceCriteria].every(

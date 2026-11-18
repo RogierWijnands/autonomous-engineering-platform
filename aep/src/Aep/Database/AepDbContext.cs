@@ -1,8 +1,4 @@
-using Aep.Workflows.Agents;
-using Aep.Workflows.Approvals;
-using Aep.Workflows.Auditing;
-using Aep.Workflows.Policies;
-using Aep.Workflows.PullRequests;
+using Aep.Workflows.History;
 using Aep.Workflows.Issues;
 using Aep.Workflows.Workflows;
 using Microsoft.EntityFrameworkCore;
@@ -14,12 +10,9 @@ public sealed class AepDbContext(DbContextOptions<AepDbContext> options) : DbCon
 {
     public DbSet<Workflow> Workflows => Set<Workflow>();
     public DbSet<WorkflowStep> WorkflowSteps => Set<WorkflowStep>();
-    public DbSet<AgentExecution> AgentExecutions => Set<AgentExecution>();
+    public DbSet<WebhookReceipt> WebhookReceipts => Set<WebhookReceipt>();
     public DbSet<Issue> Issues => Set<Issue>();
-    public DbSet<Approval> Approvals => Set<Approval>();
-    public DbSet<PolicyDecision> PolicyDecisions => Set<PolicyDecision>();
-    public DbSet<PullRequest> PullRequests => Set<PullRequest>();
-    public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
+    public DbSet<EventHistory> EventHistory => Set<EventHistory>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -28,6 +21,7 @@ public sealed class AepDbContext(DbContextOptions<AepDbContext> options) : DbCon
             entity.HasKey(issue => issue.Id);
             entity.Property(issue => issue.Source).HasMaxLength(64).IsRequired();
             entity.Property(issue => issue.ExternalId).HasMaxLength(128).IsRequired();
+            entity.Property(issue => issue.ExternalKey).HasMaxLength(128).IsRequired();
             entity.Property(issue => issue.ProjectKey).HasMaxLength(64).IsRequired();
             entity.Property(issue => issue.Summary).HasMaxLength(512).IsRequired();
             entity.Property(issue => issue.Status).HasMaxLength(64).IsRequired();
@@ -39,12 +33,27 @@ public sealed class AepDbContext(DbContextOptions<AepDbContext> options) : DbCon
         {
             entity.HasKey(workflow => workflow.Id);
             entity.Property(workflow => workflow.Status).HasConversion<string>().HasMaxLength(32);
+            entity.Property(workflow => workflow.Repository).HasMaxLength(201).IsRequired();
             entity.HasOne(workflow => workflow.Issue)
                 .WithMany(issue => issue.Workflows)
                 .HasForeignKey(workflow => workflow.IssueId)
                 .OnDelete(DeleteBehavior.Restrict);
             entity.HasIndex(workflow => workflow.Status);
             entity.HasIndex(workflow => workflow.CreatedAt);
+            entity.HasIndex(workflow => workflow.IssueId)
+                .HasDatabaseName("IX_Workflows_ActiveIssue")
+                .IsUnique()
+                .HasFilter("\"Status\" IN ('Received', 'Running', 'Paused')");
+        });
+
+        modelBuilder.Entity<WebhookReceipt>(entity =>
+        {
+            entity.HasKey(receipt => receipt.EventId);
+            entity.Property(receipt => receipt.PayloadHash).HasMaxLength(64).IsRequired();
+            entity.HasOne(receipt => receipt.Workflow)
+                .WithMany()
+                .HasForeignKey(receipt => receipt.WorkflowId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<WorkflowStep>(entity =>
@@ -63,93 +72,24 @@ public sealed class AepDbContext(DbContextOptions<AepDbContext> options) : DbCon
             entity.HasIndex(step => new { step.WorkflowId, step.Sequence }).IsUnique();
         });
 
-        modelBuilder.Entity<AgentExecution>(entity =>
+        modelBuilder.Entity<EventHistory>(entity =>
         {
-            entity.HasKey(execution => execution.Id);
-            entity.Property(execution => execution.AgentName).HasMaxLength(128).IsRequired();
-            entity.Property(execution => execution.Status).HasConversion<string>().HasMaxLength(32);
-            entity.Property(execution => execution.InputHash).HasMaxLength(64);
-            entity.Property(execution => execution.OutputHash).HasMaxLength(64);
-            entity.Property(execution => execution.OutputArtifactUri).HasMaxLength(2048);
-            entity.Property(execution => execution.ToolResultsArtifactUri).HasMaxLength(2048);
-            entity.Property(execution => execution.ErrorCode).HasMaxLength(128);
-            entity.HasOne(execution => execution.WorkflowStep)
-                .WithMany(step => step.AgentExecutions)
-                .HasForeignKey(execution => execution.WorkflowStepId)
-                .OnDelete(DeleteBehavior.Cascade);
-            entity.HasIndex(execution => new { execution.WorkflowStepId, execution.Attempt }).IsUnique();
-        });
-
-        modelBuilder.Entity<Approval>(entity =>
-        {
-            entity.HasKey(approval => approval.Id);
-            entity.Property(approval => approval.Action).HasMaxLength(128).IsRequired();
-            entity.Property(approval => approval.Status).HasConversion<string>().HasMaxLength(32);
-            entity.Property(approval => approval.RequestedBy).HasMaxLength(256);
-            entity.Property(approval => approval.DecidedBy).HasMaxLength(256);
-            entity.Property(approval => approval.ScopeHash).HasMaxLength(64);
-            entity.Property(approval => approval.DecisionArtifactUri).HasMaxLength(2048);
-            entity.HasOne(approval => approval.Workflow)
-                .WithMany(workflow => workflow.Approvals)
-                .HasForeignKey(approval => approval.WorkflowId)
-                .OnDelete(DeleteBehavior.Cascade);
-            entity.HasIndex(approval => new { approval.WorkflowId, approval.Status });
-        });
-
-        modelBuilder.Entity<PolicyDecision>(entity =>
-        {
-            entity.HasKey(decision => decision.Id);
-            entity.Property(decision => decision.PolicyName).HasMaxLength(128).IsRequired();
-            entity.Property(decision => decision.PolicyVersion).HasMaxLength(64).IsRequired();
-            entity.Property(decision => decision.Outcome).HasConversion<string>().HasMaxLength(32);
-            entity.Property(decision => decision.ReasonCode).HasMaxLength(128).IsRequired();
-            entity.Property(decision => decision.InputHash).HasMaxLength(64).IsRequired();
-            entity.Property(decision => decision.DetailsArtifactUri).HasMaxLength(2048);
-            entity.HasOne(decision => decision.Workflow)
-                .WithMany(workflow => workflow.PolicyDecisions)
-                .HasForeignKey(decision => decision.WorkflowId)
-                .OnDelete(DeleteBehavior.Cascade);
-            entity.HasIndex(decision => new { decision.WorkflowId, decision.EvaluatedAt });
-        });
-
-        modelBuilder.Entity<PullRequest>(entity =>
-        {
-            entity.HasKey(pullRequest => pullRequest.Id);
-            entity.Property(pullRequest => pullRequest.Provider).HasMaxLength(64).IsRequired();
-            entity.Property(pullRequest => pullRequest.Repository).HasMaxLength(256).IsRequired();
-            entity.Property(pullRequest => pullRequest.Url).HasMaxLength(2048).IsRequired();
-            entity.Property(pullRequest => pullRequest.Branch).HasMaxLength(256).IsRequired();
-            entity.Property(pullRequest => pullRequest.Status).HasConversion<string>().HasMaxLength(32);
-            entity.HasOne(pullRequest => pullRequest.Workflow)
-                .WithMany(workflow => workflow.PullRequests)
-                .HasForeignKey(pullRequest => pullRequest.WorkflowId)
-                .OnDelete(DeleteBehavior.Cascade);
-            entity.HasIndex(pullRequest => new
-            {
-                pullRequest.Provider,
-                pullRequest.Repository,
-                pullRequest.Number
-            }).IsUnique();
-        });
-
-        modelBuilder.Entity<AuditEvent>(entity =>
-        {
-            entity.HasKey(auditEvent => auditEvent.Id);
-            entity.Property(auditEvent => auditEvent.EventType).HasMaxLength(128).IsRequired();
-            entity.Property(auditEvent => auditEvent.Actor).HasMaxLength(256).IsRequired();
-            entity.Property(auditEvent => auditEvent.DataHash).HasMaxLength(64);
-            entity.Property(auditEvent => auditEvent.MetadataArtifactUri).HasMaxLength(2048);
-            entity.HasOne(auditEvent => auditEvent.Workflow)
-                .WithMany(workflow => workflow.AuditEvents)
-                .HasForeignKey(auditEvent => auditEvent.WorkflowId)
+            entity.HasKey(history => history.Id);
+            entity.Property(history => history.EventType).HasMaxLength(128).IsRequired();
+            entity.Property(history => history.Actor).HasMaxLength(256).IsRequired();
+            entity.Property(history => history.DataHash).HasMaxLength(64);
+            entity.Property(history => history.MetadataArtifactUri).HasMaxLength(2048);
+            entity.HasOne(history => history.Workflow)
+                .WithMany(workflow => workflow.EventHistory)
+                .HasForeignKey(history => history.WorkflowId)
                 .OnDelete(DeleteBehavior.Restrict);
-            entity.HasIndex(auditEvent => new { auditEvent.WorkflowId, auditEvent.OccurredAt });
+            entity.HasIndex(history => new { history.WorkflowId, history.OccurredAt });
         });
     }
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
-        EnsureAuditEventsAreAppendOnly();
+        EnsureEventHistoryIsAppendOnly();
         return base.SaveChanges(acceptAllChangesOnSuccess);
     }
 
@@ -157,22 +97,22 @@ public sealed class AepDbContext(DbContextOptions<AepDbContext> options) : DbCon
         bool acceptAllChangesOnSuccess,
         CancellationToken cancellationToken = default)
     {
-        EnsureAuditEventsAreAppendOnly();
+        EnsureEventHistoryIsAppendOnly();
         return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
     }
 
-    private void EnsureAuditEventsAreAppendOnly()
+    private void EnsureEventHistoryIsAppendOnly()
     {
         // Reject edits before persistence so the audit trail cannot be rewritten.
-        var changedAuditEvents = ChangeTracker.Entries<AuditEvent>()
+        var changedHistory = ChangeTracker.Entries<EventHistory>()
             .Where(entry => entry.State is EntityState.Modified or EntityState.Deleted)
             .Select(entry => entry.Entity.Id)
             .ToArray();
 
-        if (changedAuditEvents.Length > 0)
+        if (changedHistory.Length > 0)
         {
             throw new InvalidOperationException(
-                $"Audit events are append-only and cannot be changed or deleted: {string.Join(", ", changedAuditEvents)}");
+                $"Event history is append-only and cannot be changed or deleted: {string.Join(", ", changedHistory)}");
         }
     }
 }

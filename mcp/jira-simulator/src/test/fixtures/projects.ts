@@ -4,5 +4,6 @@ export const initialProjects: Project[] = [
   {
     id: "project-demo",
     name: "Demo Project",
+    repository: "owner/default",
   },
 ];

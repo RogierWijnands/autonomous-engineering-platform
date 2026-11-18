@@ -28,6 +28,7 @@ describe("EvidenceSection", () => {
       expect(
         screen.queryByRole("button", { name: "Edit evidence" }),
       ).toBeNull();
+      expect(screen.queryByRole("button", { name: "Add evidence" })).toBeNull();
     },
   );
 
@@ -83,6 +84,85 @@ describe("EvidenceSection", () => {
     await user.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.getByRole("button", { name: "Add evidence" })).toHaveFocus();
     expect(screen.queryByRole("button", { name: "Edit evidence" })).toBeNull();
+  });
+
+  it.each([
+    { content: [{ type: "paragraph" }] },
+    {
+      content: [
+        {
+          type: "paragraph",
+          content: [
+            { type: "text", text: " \t\u00a0 " },
+            { type: "hardBreak" },
+          ],
+        },
+      ],
+    },
+    {
+      content: [
+        {
+          type: "bulletList",
+          content: [
+            {
+              type: "listItem",
+              content: [
+                {
+                  type: "paragraph",
+                  content: [{ type: "text", text: "   " }],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  ])(
+    "treats a saved document without text or images as empty",
+    ({ content }) => {
+      render(
+        <EvidenceSection
+          evidence={{ type: "doc", content }}
+          onSave={vi.fn()}
+        />,
+      );
+      expect(screen.getByText("No evidence added.")).toBeVisible();
+      expect(
+        screen.getByRole("button", { name: "Add evidence" }),
+      ).toBeVisible();
+      expect(
+        screen.queryByRole("button", { name: "Edit evidence" }),
+      ).toBeNull();
+    },
+  );
+
+  it("recognizes meaningful text nested in a list", () => {
+    render(
+      <EvidenceSection
+        evidence={{
+          type: "doc",
+          content: [
+            {
+              type: "bulletList",
+              content: [
+                {
+                  type: "listItem",
+                  content: [
+                    {
+                      type: "paragraph",
+                      content: [{ type: "text", text: " Verified " }],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        }}
+        onSave={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Edit evidence" })).toBeVisible();
+    expect(screen.getByText("Verified")).toBeVisible();
   });
 
   it.each([undefined, null, ""])(

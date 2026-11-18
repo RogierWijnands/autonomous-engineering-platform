@@ -2,7 +2,8 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { JiraClient } from "../jira/client.ts";
 import { keySchema, singleIssueSchema, stateSchema } from "../jira/schemas.ts";
-import { runTool } from "./result.ts";
+import { extractEvidenceContent } from "../utils/evidenceContent.ts";
+import { runTool } from "./toolRunner.ts";
 
 export function registerReadTools(server: McpServer, request: JiraClient) {
   // Listing returns summaries; a single issue also exposes evidence images.
@@ -36,7 +37,7 @@ export function registerReadTools(server: McpServer, request: JiraClient) {
         return (
           await request(`issues/${encodeURIComponent(key)}`, singleIssueSchema)
         ).issue;
-      }, true),
+      }, extractEvidenceContent),
   );
 }
 
